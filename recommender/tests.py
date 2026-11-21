@@ -325,6 +325,9 @@ class ViewTests(ModelBackedTestCase):
         self.assertEqual(payload['movies'][0], 'The Matrix')
         self.assertEqual(payload['count'], len(payload['movies']))
 
+        fuzzy_payload = self.client.get('/api/search/', {'q': 'Matrx Reloded'}).json()
+        self.assertEqual(fuzzy_payload['movies'][0], 'The Matrix Reloaded')
+
     def test_search_api_ignores_short_queries(self):
         payload = self.client.get('/api/search/', {'q': 'm'}).json()
         self.assertEqual(payload, {'movies': [], 'count': 0})

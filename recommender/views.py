@@ -214,10 +214,21 @@ class MovieRecommender:
 
         # 3. Fuzzy match as a last resort, narrowed to titles of a similar
         #    length so difflib is not run across the whole catalogue.
-        window = range(max(1, len(query) - 6), len(query) + 7)
-        narrowed = [t for t in self._titles if len(t) in window]
-        matches = get_close_matches(query, narrowed or self._titles, n=1, cutoff=0.6)
+        matches = self._fuzzy_title_matches(query, n=1, cutoff=0.6)
         return matches[0] if matches else None
+
+    def _fuzzy_title_matches(self, query: str, n: int, cutoff: float) -> list[str]:
+        cleaned = query.strip().lower()
+        if not cleaned:
+            return []
+
+        length_window = range(max(1, len(cleaned) - 6), len(cleaned) + 7)
+        candidates = [title for title in self._titles if len(title) in length_window]
+        normalized_titles = {title.lower(): title for title in candidates}
+        matches = get_close_matches(
+            cleaned, list(normalized_titles), n=n, cutoff=cutoff
+        )
+        return [normalized_titles[match] for match in matches]
 
     def suggest(self, query: str, n: int = 5) -> list[str]:
         """Titles to offer after a failed search.
@@ -244,8 +255,9 @@ class MovieRecommender:
         return hits
 
     def search_movies(self, query: str, n: int = MAX_AUTOCOMPLETE_RESULTS) -> list[str]:
-        """Search titles by prefix first, then substring, for autocomplete."""
-        lowered = query.strip().lower()
+        """Search titles by prefix, substring, then fuzzy match for autocomplete."""
+        cleaned = query.strip()
+        lowered = cleaned.lower()
         if not lowered:
             return []
 
@@ -261,7 +273,10 @@ class MovieRecommender:
 
         prefix.sort(key=len)
         substring.sort(key=len)
-        return (prefix + substring)[:n]
+        matches = (prefix + substring)[:n]
+        if matches:
+            return matches
+        return self._fuzzy_title_matches(cleaned, n=n, cutoff=0.6)
 
     # ------------------------------------------------------- recommendations
 
