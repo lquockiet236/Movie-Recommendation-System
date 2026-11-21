@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Khám phá phim TMDB{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--background:#0f172a;--surface:#1e293b;--surface-light:#334155;--primary:#6366f1;--secondary:#8b5cf6;--text:#f1f5f9;--muted:#cbd5e1;--border:rgba(148,163,184,.16)}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at top right,rgba(99,102,241,.12),transparent 28rem),var(--background);color:var(--text);font:16px/1.55 Inter,system-ui,Arial;min-height:100vh}
+    a{color:#a5b4fc;text-decoration:none}a:hover{color:#c7d2fe}
+    .topbar{position:sticky;top:0;z-index:20;background:rgba(30,41,59,.92);border-bottom:1px solid var(--border);backdrop-filter:blur(16px)}
+    .nav-inner{max-width:1150px;margin:auto;padding:12px 16px;display:flex;align-items:center;gap:8px}
+    .brand{display:flex!important;align-items:center;gap:9px;margin-right:auto;color:var(--text)!important;font-weight:700}
+    .brand-mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--primary),var(--secondary));box-shadow:0 8px 24px rgba(99,102,241,.25)}
+    .nav-link{padding:8px 10px;border-radius:8px;color:var(--muted);font-size:14px;font-weight:500}
+    .nav-link:hover{background:rgba(99,102,241,.12);color:var(--text);text-decoration:none}
+    .logout-button{padding:8px 12px!important;font-size:14px!important}
+    main{max-width:1200px;margin:auto;padding:38px 24px 72px}
+    h1,h2{letter-spacing:-.03em}h1{font-size:clamp(32px,5vw,52px);line-height:1.12;margin:0 0 12px}h2{margin:0 0 18px;font-size:22px}
+    .hero{margin-bottom:28px;padding:34px 36px;border:1px solid var(--border);border-radius:20px;background:linear-gradient(115deg,rgba(30,41,59,.96),rgba(30,41,59,.62));box-shadow:0 18px 50px rgba(2,6,23,.18)}
+    .hero p{margin:0;max-width:650px}
+    .hero::after{content:"";display:block;width:60px;height:3px;margin-top:22px;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--secondary))}
+    .muted{color:var(--muted);font-size:14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:22px}
+    .movie{background:linear-gradient(180deg,var(--surface),rgba(30,41,59,.82));border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease;box-shadow:0 10px 30px rgba(2,6,23,.12)}
+    .movie:hover{transform:translateY(-5px);border-color:rgba(99,102,241,.55);box-shadow:0 18px 38px rgba(2,6,23,.32);text-decoration:none}
+    .movie img{width:100%;aspect-ratio:2/3;object-fit:cover;background:var(--surface-light);display:block}
+    .movie .info{padding:14px;min-height:84px}
+    .movie strong{display:block;color:var(--text);font-size:15px;line-height:1.4;margin-bottom:7px}
+    .rating{color:#fbbf24!important}
+    .error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.28);padding:14px;border-radius:10px}
+    .form{display:grid;grid-template-columns:minmax(220px,2fr) minmax(160px,1fr) 120px auto auto;align-items:center;gap:12px;margin:20px 0 34px;padding:16px;background:rgba(30,41,59,.72);border:1px solid var(--border);border-radius:16px}
+    input,select,button{padding:11px 13px;border-radius:9px;border:1px solid #475569;background:var(--surface);color:#fff;font-family:inherit}
+    input,select{min-height:46px;width:100%;min-width:0}input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,.16)}
+    button{background:linear-gradient(135deg,var(--primary),var(--secondary));border:0;cursor:pointer;font-weight:600;transition:.2s}button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+    .clear-filter{justify-self:center;padding:10px 8px}
+    .detail-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:34px;align-items:start}
+    .poster{width:100%;border-radius:16px;box-shadow:0 22px 45px rgba(2,6,23,.38)}
+    .detail-info{padding:8px 0}.detail-info h1{font-size:clamp(28px,5vw,44px)}
+    .genre-list{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.genre-chip{padding:6px 10px;border-radius:999px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.22);color:#c7d2fe;font-size:13px}
+    .overview{max-width:720px;color:var(--muted);line-height:1.75}
+    .action-panel{margin-top:22px;padding:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .action-panel form{display:flex;gap:10px;align-items:center;margin:0}.action-panel label{color:var(--muted);font-size:14px}
+    .browse-recommend-link{display:inline-flex;margin-top:18px;font-weight:600}
+    .recommend-detail-link{display:inline-flex;align-items:center;min-height:42px;padding:9px 13px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;font-weight:600}
+    .recommend-detail-link:hover{color:#fff;filter:brightness(1.08)}
+    .section{margin-top:42px}.back-link{display:inline-flex;margin-top:22px;color:var(--muted)}
+    .pagination{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:32px}.pagination a{padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:9px}
+    .recommend-hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:48px;align-items:center;padding:44px;border:1px solid var(--border);border-radius:24px;background:radial-gradient(ellipse at 20% 5%,rgba(99,102,241,.17),transparent 42%),linear-gradient(130deg,rgba(30,41,59,.96),rgba(30,41,59,.68));box-shadow:0 24px 60px rgba(2,6,23,.22)}
+    .recommend-copy .eyebrow{display:inline-block;margin-bottom:16px;color:#a5b4fc;font-size:12px;font-weight:700;letter-spacing:.13em}
+    .recommend-copy h1{max-width:600px}
+    .recommend-copy>p{max-width:540px;font-size:16px;line-height:1.75}
+    .recommend-card{padding:24px;background:rgba(15,23,42,.72);border:1px solid var(--border);border-radius:18px;box-shadow:0 16px 42px rgba(2,6,23,.22)}
+    .recommend-card label{display:block;margin-bottom:10px;font-weight:600}
+    .recommend-card button[type=submit]{width:100%;min-height:48px;margin-top:12px}
+    .recommend-card .muted{margin:8px 0 12px}
+    .recommend-input-wrap{position:relative}
+    .search-status{min-height:20px}
+    .suggestion-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .suggestion-chip{padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface-light);color:var(--text)}
+    .suggestion-chip:hover{border-color:var(--primary)}
+    @media(max-width:900px){.recommend-hero{grid-template-columns:1fr;gap:28px;padding:32px}.form{grid-template-columns:repeat(2,minmax(0,1fr))}.form input[name=q]{grid-column:1/-1}}
+    @media(max-width:760px){.nav-inner{overflow-x:auto}.nav-link{white-space:nowrap}.detail-layout{grid-template-columns:180px minmax(0,1fr);gap:20px}.hero{padding:28px}}
+    @media(max-width:540px){main{padding:24px 14px 48px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.movie .info{padding:11px;min-height:80px}.form{grid-template-columns:1fr}.form input[name=q]{grid-column:auto}.detail-layout{grid-template-columns:1fr}.poster{width:180px}.action-panel,.action-panel form{align-items:stretch;flex-direction:column}.action-panel form{width:100%}.recommend-hero{padding:22px 18px}.hero{padding:24px 20px}}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <nav class="nav-inner" aria-label="Điều hướng chính">
+      <a class="brand" href="{% url 'recommender:main' %}"><span class="brand-mark">🎬</span><span>CineRec</span></a>
+      <a class="nav-link" href="{% url 'recommender:tmdb_browse' %}">Khám phá</a>
+      <a class="nav-link" href="{% url 'recommender:recommend' %}">Tìm gợi ý</a>
+      {% if user.is_authenticated %}
+      <a class="nav-link" href="{% url 'recommender:for_you' %}">Gợi ý cho bạn</a>
+      <a class="nav-link" href="{% url 'recommender:favorites' %}">Yêu thích</a>
+      <a class="nav-link" href="{% url 'recommender:history' %}">Lịch sử</a>
+      {% if user.is_staff %}<a class="nav-link" href="{% url 'admin:index' %}">Quản trị</a>{% endif %}
+      <form method="post" action="{% url 'logout' %}" style="margin:0">{% csrf_token %}<button class="logout-button" type="submit">Đăng xuất</button></form>
+      {% else %}
+      <a class="nav-link" href="{% url 'login' %}">Đăng nhập</a>
+      <a class="nav-link" href="{% url 'recommender:signup' %}">Đăng ký</a>
+      {% endif %}
+    </nav>
+  </div>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

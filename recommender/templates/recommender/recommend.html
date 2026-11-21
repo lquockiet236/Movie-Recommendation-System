@@ -1,0 +1,80 @@
+{% extends 'recommender/tmdb_base.html' %}
+{% block title %}Gợi ý phim{% endblock %}
+{% block content %}
+<section class="recommend-hero">
+  <div class="recommend-copy">
+    <span class="eyebrow">CINEREC · DÀNH RIÊNG CHO BẠN</span>
+    <h1>Tìm bộ phim tiếp theo bạn sẽ yêu thích</h1>
+    <a class="back-link" href="{% url 'recommender:main' %}">← Trở về danh sách phim</a>
+  </div>
+  <form method="post" class="recommend-card" action="{% url 'recommender:recommend' %}">
+    {% csrf_token %}
+    <label for="movie_name">Bạn thích bộ phim nào?</label>
+    <div class="recommend-input-wrap">
+      <input id="movie_name" name="movie_name" value="{{ movie_query|default:'' }}" maxlength="200"
+             placeholder="Ví dụ: Inception, The Matrix..." list="movieSuggestions"
+             autocomplete="off" required>
+      <datalist id="movieSuggestions"></datalist>
+    </div>
+    <button type="submit">✨ Tìm phim tương tự</button>
+    <p class="search-status muted" id="searchStatus" aria-live="polite"></p>
+    {% if error_message %}<p class="error" role="alert">{{ error_message }}</p>{% endif %}
+    {% if suggestions %}
+    <p class="muted">Có phải bạn đang tìm một trong những phim này?</p>
+    <div class="suggestion-list" aria-label="Phim có thể bạn muốn tìm">
+      {% for suggestion in suggestions %}
+      <button class="suggestion-chip" type="button" data-title="{{ suggestion }}">{{ suggestion }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </form>
+</section>
+<script>
+  (function () {
+    var input = document.getElementById('movie_name');
+    var list = document.getElementById('movieSuggestions');
+    var status = document.getElementById('searchStatus');
+    var timer;
+    var controller;
+
+    input.addEventListener('input', function () {
+      window.clearTimeout(timer);
+      if (controller) { controller.abort(); }
+      var query = input.value.trim();
+      list.replaceChildren();
+      status.textContent = '';
+      if (query.length < 2) { return; }
+
+      timer = window.setTimeout(function () {
+        controller = new AbortController();
+        fetch('{% url "recommender:search_movies" %}?q=' + encodeURIComponent(query), {
+          signal: controller.signal,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (response) {
+          if (!response.ok) { throw new Error('Search request failed'); }
+          return response.json();
+        }).then(function (data) {
+          list.replaceChildren();
+          (data.movies || []).forEach(function (title) {
+            list.appendChild(new Option(title, title));
+          });
+          status.textContent = data.loading
+            ? 'Đang tải danh mục phim, vui lòng thử lại sau giây lát.'
+            : '';
+        }).catch(function (error) {
+          if (error.name !== 'AbortError') {
+            status.textContent = 'Chưa thể tải gợi ý tên phim. Bạn vẫn có thể nhập tên và tiếp tục.';
+          }
+        });
+      }, 180);
+    });
+
+    document.querySelectorAll('.suggestion-chip').forEach(function (button) {
+      button.addEventListener('click', function () {
+        input.value = button.dataset.title;
+        input.form.requestSubmit();
+      });
+    });
+  })();
+</script>
+{% endblock %}

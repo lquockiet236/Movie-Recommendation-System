@@ -1,0 +1,14 @@
+{% extends 'recommender/tmdb_base.html' %}
+{% block title %}Đánh giá hệ thống gợi ý{% endblock %}
+{% block content %}
+<h1>Đánh giá thuật toán gợi ý (Offline)</h1>
+<form method="get"><label for="k">Top K: </label><select name="k" id="k"><option value="5" {% if evaluation.k == 5 %}selected{% endif %}>5</option><option value="10" {% if evaluation.k == 10 %}selected{% endif %}>10</option><option value="20" {% if evaluation.k == 20 %}selected{% endif %}>20</option></select> <button type="submit">Đánh giá</button></form>
+<p>Người dùng đủ điều kiện: <strong>{{ evaluation.eligible_users }}</strong> / {{ evaluation.rating_users }} · Phim có đánh giá: {{ evaluation.catalog_size }} · Phim có metadata lưu cục bộ: {{ evaluation.metadata_movies }}</p>
+{% if not evaluation.eligible_users %}<p class="error">Chưa đủ dữ liệu để tính các chỉ số. Mỗi tài khoản kiểm thử cần ít nhất 3 phim đánh giá 4–5 sao.</p>{% else %}
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:12px;text-align:left">Thuật toán</th><th>Precision@{{ evaluation.k }}</th><th>Recall@{{ evaluation.k }}</th><th>Coverage</th><th>Hit / Users</th></tr></thead><tbody>
+{% for name, m in evaluation.results.items %}<tr><td style="padding:12px">{{ name }}</td><td style="text-align:center">{% if m.precision is not None %}{{ m.precision|floatformat:3 }}{% else %}N/A{% endif %}</td><td style="text-align:center">{% if m.recall is not None %}{{ m.recall|floatformat:3 }}{% else %}N/A{% endif %}</td><td style="text-align:center">{% if m.coverage is not None %}{{ m.coverage|floatformat:3 }}{% else %}N/A{% endif %}</td><td style="text-align:center">{{ m.hits }}/{{ m.users }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endif %}
+<p class="muted">{{ evaluation.note }}</p>
+<p class="muted">Đây là phép đánh giá ngoại tuyến trên tập phim có đánh giá. Không đồng nhất kết quả này với chất lượng gợi ý trực tuyến từ TMDB. Một phim được giữ lại làm kiểm thử cho mỗi người dùng đủ điều kiện.</p>
+{% endblock %}

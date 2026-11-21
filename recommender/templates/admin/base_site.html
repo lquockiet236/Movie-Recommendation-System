@@ -1,0 +1,8 @@
+{% extends "admin/base.html" %}
+
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">Movie Recommender</a>
+    <a href="{% url 'admin_dashboard' %}" style="margin-left: 1.25rem">Tổng quan</a>
+</h1>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'recommender/account_base.html' %}
+{% block title %}Phim yêu thích{% endblock %}
+{% block content %}
+<h1>Phim yêu thích</h1>
+<ul>
+{% for item in favorites %}
+<li>
+  {% if item.tmdb_id %}
+  {% if item.poster_path %}<img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="" width="52" style="object-fit:cover;border-radius:7px;vertical-align:middle;margin-right:12px">{% endif %}
+  <a href="{% url 'recommender:tmdb_detail' item.tmdb_id %}">{{ item.movie_title }}</a>
+  <form method="post" action="{% url 'recommender:tmdb_favorite' item.tmdb_id %}" style="display:inline;margin-left:10px">
+    {% csrf_token %}<button type="submit">Xóa</button>
+  </form>
+  {% else %}
+  {{ item.movie_title }} <span style="color:#94a3b8">(dữ liệu cũ)</span>
+  <form method="post" action="{% url 'recommender:toggle_favorite' %}" style="display:inline;margin-left:10px">
+    {% csrf_token %}<input type="hidden" name="movie_title" value="{{ item.movie_title }}"><button type="submit">Xóa</button>
+  </form>
+  {% endif %}
+</li>
+{% empty %}
+<li>Bạn chưa lưu phim nào.</li>
+{% endfor %}
+</ul>
+{% endblock %}

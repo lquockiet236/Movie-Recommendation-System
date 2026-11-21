@@ -1,0 +1,19 @@
+{% extends 'recommender/account_base.html' %}
+{% block title %}Đăng ký · CineRec{% endblock %}
+{% block main_class %}signup-card{% endblock %}
+{% block content %}
+<header class="signup-header">
+  <span class="signup-mark" aria-hidden="true">🎬</span>
+  <p class="signup-eyebrow">CINEREC · TÀI KHOẢN CỦA BẠN</p>
+  <h1>Tạo tài khoản mới</h1>
+</header>
+<form method="post" class="account-form">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Tạo tài khoản</button>
+</form>
+<p class="signup-footer">
+  Đã có tài khoản? <a href="{% url 'login' %}">Đăng nhập</a>
+  <a class="signup-home" href="{% url 'recommender:main' %}">← Trở về danh sách phim</a>
+</p>
+{% endblock %}

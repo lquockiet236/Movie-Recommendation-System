@@ -1,0 +1,97 @@
+ .dockerignore                                      |   54 [32m+[m
+ .env.example                                       |   40 [32m+[m
+ .github/FUNDING.yml                                |    1 [32m+[m
+ .github/workflows/ci.yml                           |   38 [32m+[m
+ .gitignore                                         |   69 [32m++[m
+ CHANGELOG.md                                       |  563 [32m+++++++++[m
+ CONTRIBUTING.md                                    |  162 [32m+++[m
+ Dockerfile                                         |   43 [32m+[m
+ HUONG_DAN_PHASE2.md                                |   22 [32m+[m
+ HUONG_DAN_PHASE3.md                                |   33 [32m+[m
+ HUONG_DAN_PHASE4.md                                |   29 [32m+[m
+ HUONG_DAN_PHASE5.md                                |   35 [32m+[m
+ HUONG_DAN_TMDB.md                                  |   45 [32m+[m
+ LICENSE                                            |   22 [32m+[m
+ PROJECT_GUIDE.md                                   | 1195 [32m++++++++++++++++++++[m
+ Procfile                                           |    2 [32m+[m
+ README.md                                          |  387 [32m+++++++[m
+ SECURITY.md                                        |   22 [32m+[m
+ UPGRADE_GUIDE_VI.md                                |   29 [32m+[m
+ assets/demo-video/Application-Demo.gif             |  Bin [31m0[m -> [32m428066[m bytes
+ assets/images-for-readme/Architecture.png          |  Bin [31m0[m -> [32m455747[m bytes
+ assets/images-for-readme/Architecture.svg          |  120 [32m++[m
+ assets/images-for-readme/Header.png                |  Bin [31m0[m -> [32m377546[m bytes
+ assets/images-for-readme/Header.svg                |   79 [32m++[m
+ assets/images-for-readme/Homepage.png              |  Bin [31m0[m -> [32m330544[m bytes
+ assets/images-for-readme/Logo.png                  |  Bin [31m0[m -> [32m104726[m bytes
+ assets/images-for-readme/Results.png               |  Bin [31m0[m -> [32m302929[m bytes
+ assets/images-for-readme/logo.svg                  |   18 [32m+[m
+ assets/images-for-readme/social-preview.png        |  Bin [31m0[m -> [32m495017[m bytes
+ assets/images-for-readme/social-preview.svg        |   56 [32m+[m
+ demo_model/README.md                               |   49 [32m+[m
+ demo_model/config.json                             |   12 [32m+[m
+ demo_model/movie_metadata.parquet                  |  Bin [31m0[m -> [32m1153931[m bytes
+ demo_model/neighbors_idx.npy                       |  Bin [31m0[m -> [32m1249728[m bytes
+ demo_model/neighbors_scores.npy                    |  Bin [31m0[m -> [32m1249728[m bytes
+ demo_model/title_to_idx.json                       |    1 [32m+[m
+ manage.py                                          |   22 [32m+[m
+ movie_recommendation/__init__.py                   |    0
+ movie_recommendation/asgi.py                       |    6 [32m+[m
+ movie_recommendation/settings.py                   |  222 [32m++++[m
+ movie_recommendation/urls.py                       |   26 [32m+[m
+ movie_recommendation/wsgi.py                       |    7 [32m+[m
+ pyproject.toml                                     |   30 [32m+[m
+ recommender/__init__.py                            |    0
+ recommender/account_views.py                       |   97 [32m++[m
+ recommender/admin.py                               |   49 [32m+[m
+ recommender/apps.py                                |    6 [32m+[m
+ recommender/collaborative_filtering.py             |   57 [32m+[m
+ recommender/evaluation.py                          |   84 [32m++[m
+ recommender/evaluation_views.py                    |   15 [32m+[m
+ recommender/forms.py                               |   49 [32m+[m
+ recommender/management/__init__.py                 |    0
+ recommender/management/commands/__init__.py        |    0
+ .../commands/evaluate_recommendations.py           |   22 [32m+[m
+ recommender/migrations/0001_initial.py             |   30 [32m+[m
+ .../migrations/0002_favorite_search_history.py     |   37 [32m+[m
+ .../migrations/0003_tmdb_personalization.py        |   14 [32m+[m
+ recommender/migrations/__init__.py                 |    0
+ recommender/models.py                              |   80 [32m++[m
+ recommender/recommendation_engine.py               |  113 [32m++[m
+ recommender/recommendation_views.py                |   16 [32m+[m
+ recommender/templates/admin/base_site.html         |    8 [32m+[m
+ .../templates/recommender/account_base.html        |   51 [32m+[m
+ .../templates/recommender/admin_dashboard.html     |  176 [32m+++[m
+ recommender/templates/recommender/error.html       |  111 [32m++[m
+ .../recommender/evaluation_dashboard.html          |   14 [32m+[m
+ recommender/templates/recommender/favorites.html   |   25 [32m+[m
+ recommender/templates/recommender/for_you.html     |   17 [32m+[m
+ recommender/templates/recommender/history.html     |    1 [32m+[m
+ recommender/templates/recommender/index.html       |  907 [32m+++++++++++++++[m
+ .../templates/recommender/interactions.html        |    1 [32m+[m
+ recommender/templates/recommender/login.html       |    1 [32m+[m
+ recommender/templates/recommender/recommend.html   |   80 [32m++[m
+ recommender/templates/recommender/result.html      |  590 [32m++++++++++[m
+ recommender/templates/recommender/signup.html      |   19 [32m+[m
+ recommender/templates/recommender/tmdb_base.html   |   91 [32m++[m
+ recommender/templates/recommender/tmdb_browse.html |  101 [32m++[m
+ recommender/templates/recommender/tmdb_cards.html  |   17 [32m+[m
+ recommender/templates/recommender/tmdb_detail.html |   46 [32m+[m
+ recommender/tests.py                               |  478 [32m++++++++[m
+ recommender/tests_evaluation.py                    |   38 [32m+[m
+ recommender/tests_recommendation.py                |   64 [32m++[m
+ recommender/tmdb_service.py                        |   98 [32m++[m
+ recommender/tmdb_views.py                          |  202 [32m++++[m
+ recommender/urls.py                                |   31 [32m+[m
+ recommender/views.py                               |  692 [32m++++++++++++[m
+ render.yaml                                        |   43 [32m+[m
+ requirements-train.txt                             |    8 [32m+[m
+ requirements.txt                                   |   18 [32m+[m
+ settings.py                                        |    6 [32m+[m
+ static/logo.ico                                    |  Bin [31m0[m -> [32m6846[m bytes
+ training/__init__.py                               |    1 [32m+[m
+ training/guide.md                                  |  501 [32m++++++++[m
+ training/infer.py                                  |  521 [32m+++++++++[m
+ training/tests.py                                  |  203 [32m++++[m
+ training/train.py                                  |  541 [32m+++++++++[m
+ 96 files changed, 9809 insertions(+)

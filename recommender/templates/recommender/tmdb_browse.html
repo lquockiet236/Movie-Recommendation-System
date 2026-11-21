@@ -1,0 +1,101 @@
+{% extends 'recommender/tmdb_base.html' %}
+{% block title %}Khám phá phim TMDB{% endblock %}
+{% block content %}
+<header class="hero">
+  <h1>Khám phá phim</h1>
+  <a class="browse-recommend-link" href="{% url 'recommender:recommend' %}">
+    Bạn đã có phim yêu thích? Tìm phim tương tự →
+  </a>
+</header>
+
+<form method="get" class="form">
+  <input name="q" value="{{ query }}" maxlength="120" placeholder="Nhập tên phim..." aria-label="Tên phim">
+  <select name="genre" aria-label="Thể loại">
+    <option value="">Mọi thể loại</option>
+    {% for g in genres %}
+      <option value="{{ g.id }}" {% if selected_genre == g.id|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
+    {% endfor %}
+  </select>
+  <input name="year" value="{{ year }}" type="number" min="1900" max="2100" placeholder="Năm" aria-label="Năm">
+  <button type="submit">Tìm phim</button>
+  <a class="clear-filter" href="{% url 'recommender:tmdb_browse' %}">Xóa lọc</a>
+</form>
+
+{% if query and selected_genre or query and year %}
+  <p class="muted">Khi nhập tên phim, bộ lọc thể loại/năm sẽ không áp dụng.</p>
+{% endif %}
+
+{% if fallback_loading %}
+  <p class="muted" id="catalogStatus" role="status">Đang chuẩn bị danh sách phim...</p>
+  <script>
+    (function () {
+      var status = document.getElementById('catalogStatus');
+      var failures = 0;
+      function checkCatalog() {
+        fetch('{% url "recommender:model_status" %}', {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (response) {
+          if (!response.ok) { throw new Error('Model status request failed'); }
+          return response.json();
+        }).then(function (data) {
+          if (data.loaded) {
+            window.location.reload();
+          } else if (data.status === 'missing' || data.status === 'error') {
+            status.textContent = 'Chưa có danh sách offline. Hãy cấu hình TMDB_ACCESS_TOKEN để duyệt phim.';
+          } else {
+            window.setTimeout(checkCatalog, 700);
+          }
+        }).catch(function () {
+          failures += 1;
+          if (failures < 6) {
+            window.setTimeout(checkCatalog, 1200);
+          } else {
+            status.textContent = 'Chưa thể tải danh sách phim. Hãy thử tải lại trang.';
+          }
+        });
+      }
+      window.setTimeout(checkCatalog, 500);
+    })();
+  </script>
+{% endif %}
+
+{% if error %}
+  <p class="error">{{ error }}</p>
+{% else %}
+  {% if not fallback_loading %}
+    {% if trending %}
+      <section>
+        <h2>Thịnh hành tuần này</h2>
+        {% include 'recommender/tmdb_cards.html' with films=trending %}
+      </section>
+    {% endif %}
+    <section class="section">
+      <h2>
+        {% if mode == 'search' %}
+          Kết quả tìm kiếm
+        {% elif mode == 'discover' %}
+          Phim theo bộ lọc
+        {% else %}
+          Phim phổ biến
+        {% endif %}
+      </h2>
+      {% include 'recommender/tmdb_cards.html' with films=movies %}
+    </section>
+    {% if movies %}
+      <nav class="pagination" aria-label="Phân trang">
+        {% if page > 1 %}
+          <a href="?q={{ query|urlencode }}&genre={{ selected_genre }}&year={{ year }}&page={{ page|add:'-1' }}">
+            ← Trang trước
+          </a>
+        {% endif %}
+        <span class="muted">Trang {{ page }}</span>
+        {% if movies|length >= 24 %}
+          <a href="?q={{ query|urlencode }}&genre={{ selected_genre }}&year={{ year }}&page={{ page|add:'1' }}">
+            Trang tiếp →
+          </a>
+        {% endif %}
+      </nav>
+    {% endif %}
+  {% endif %}
+{% endif %}
+{% endblock %}
