@@ -4,7 +4,7 @@
 <header class="hero">
 <h1>Gợi ý dành cho bạn</h1>
 </header>
-{% if error %}<p class="error">{{ error }}</p>{% else %}
+{% if error %}<p class="error">{{ error }}</p>{% elif not suppress_recommendations %}
 {% if cold_start %}<p>Bạn chưa có đủ dữ liệu sở thích. Đây là các phim phổ biến để khám phá. Hãy yêu thích hoặc đánh giá phim để nhận gợi ý riêng.</p>{% endif %}
 <div class="grid">
 {% for item in recommendations %}
@@ -13,5 +13,4 @@
 <div class="info"><strong>{{ item.movie.title }}</strong><span class="muted">★ {{ item.movie.vote_average|floatformat:1 }}</span><p class="muted">{{ item.reason }}</p>{% if item.score != None %}<span class="muted">Điểm phù hợp: {{ item.score }}/100</span>{% endif %}</div></a>
 {% empty %}<p>Chưa có phim gợi ý. Hãy khám phá và đánh giá thêm phim.</p>{% endfor %}
 </div>{% endif %}
-<p class="muted section">Điểm phù hợp là điểm xếp hạng nội bộ, không phải xác suất chính xác. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 {% endblock %}

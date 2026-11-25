@@ -7,11 +7,12 @@ the tests fast and means they exercise the real loading path -- parquet list
 columns included, since those are a common source of subtle breakage.
 """
 import json
+import re
 import shutil
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 
 from . import tmdb_views, views
-from .models import Movie
+from .models import FavoriteMovie, Movie, MovieInteraction, MovieRating, SearchHistory
 
 # Tests run with DEBUG=False, where the manifest static storage insists on a
 # collectstatic manifest that does not exist in a source checkout. Swap in the
@@ -217,6 +218,59 @@ class NeighborFileTests(ModelBackedTestCase):
 
 
 class ViewTests(ModelBackedTestCase):
+    def test_login_page_uses_signup_account_layout(self):
+        response = self.client.get('/accounts/login/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="account-main signup-card"')
+        self.assertContains(response, 'class="signup-header"')
+        self.assertContains(response, 'class="signup-mark"')
+        self.assertContains(response, 'class="account-form"')
+        self.assertContains(response, '.account-form button{width:100%;margin-top:4px}')
+        self.assertContains(response, 'class="signup-footer"')
+
+    @override_settings(TMDB_ACCESS_TOKEN='')
+    def test_browse_filters_render_all_controls_in_the_responsive_form(self):
+        response = self.client.get('/movies/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="browse-filters"')
+        self.assertContains(response, '<footer class="site-footer">© ')
+        self.assertContains(response, 'name="q"')
+        self.assertContains(response, 'role="combobox"')
+        self.assertContains(response, 'aria-controls="browseMovieSuggestions"')
+        self.assertContains(response, 'role="listbox"')
+        self.assertContains(response, 'name="genre"')
+        self.assertContains(response, 'class="browse-genre-toggle"')
+        self.assertContains(response, 'id="browseGenreOptions"')
+        self.assertContains(response, '.browse-genre-menu[hidden]{display:none}')
+        self.assertContains(response, 'name="year"')
+        self.assertContains(response, 'type="text" inputmode="numeric" pattern="[0-9]{4}"')
+        self.assertContains(response, 'maxlength="4"')
+        self.assertContains(response, 'aria-label="Năm" autocomplete="off"')
+        self.assertContains(response, 'aria-describedby="browseYearError"')
+        self.assertContains(response, 'id="browseYearError" role="alert"')
+        self.assertContains(response, '.browse-year-error{position:absolute')
+        self.assertContains(response, 'Không tìm thấy phim.')
+
+    @override_settings(TMDB_ACCESS_TOKEN='')
+    def test_browse_year_filter_requires_four_ascii_digits(self):
+        for year in ('199', '01999', '20x0', '２０２０'):
+            with self.subTest(year=year):
+                response = self.client.get('/movies/', {'year': year})
+                self.assertEqual(response.context['year'], '')
+
+        response = self.client.get('/movies/', {'year': '2020'})
+        self.assertEqual(response.context['year'], '2020')
+
+    @override_settings(TMDB_ACCESS_TOKEN='')
+    def test_empty_browse_message_spans_the_movie_grid(self):
+        response = self.client.get('/movies/', {'q': 'no matching movie'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="muted tmdb-empty-message"')
+        self.assertContains(response, '.tmdb-empty-message{grid-column:1/-1;white-space:nowrap}')
+
     def test_browse_page_fills_24_movies_across_tmdb_pages(self):
         requested_pages = []
 
@@ -246,16 +300,17 @@ class ViewTests(ModelBackedTestCase):
         self.assertContains(response, 'Tạo tài khoản mới')
         self.assertContains(response, 'Tối thiểu 8 ký tự')
         self.assertContains(response, 'autocomplete="new-password"')
-        self.assertContains(response, 'class="signup-card"')
+        self.assertContains(response, 'class="account-main signup-card"')
 
     @override_settings(TMDB_ACCESS_TOKEN='')
     @patch.object(views.MovieRecommender, 'get_recommendations')
-    def test_homepage_lists_movies_without_generating_recommendations(self, get_recommendations):
-        response = self.client.get('/')
-        self.assertEqual(response.status_code, 200)
-        body = response.content.decode()
-        self.assertIn('Khám phá phim', body)
-        self.assertIn('The Matrix', body)
+    def test_root_redirects_to_canonical_movie_browse_path(self, get_recommendations):
+        response = self.client.get('/?q=matrix')
+        self.assertRedirects(response, '/movies/?q=matrix', fetch_redirect_response=False)
+
+        browse_response = self.client.get(response['Location'])
+        self.assertContains(browse_response, 'Khám phá phim')
+        self.assertContains(browse_response, 'The Matrix')
         get_recommendations.assert_not_called()
 
     @patch('recommender.views._get_recommender')
@@ -263,6 +318,9 @@ class ViewTests(ModelBackedTestCase):
         response = self.client.get('/recommendation')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'CineRec')
+        self.assertContains(response, 'role="combobox"')
+        self.assertContains(response, 'id="movieSuggestionsList"')
+        self.assertNotContains(response, '<datalist')
         self.assertNotContains(response, 'Gợi ý chỉ được tạo sau khi bạn nhấn nút')
         get_recommender.assert_not_called()
 
@@ -272,6 +330,8 @@ class ViewTests(ModelBackedTestCase):
         response = self.client.get('/movies/1/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Tìm phim tương tự')
+        self.assertNotContains(response, 'Chi tiết offline từ model demo.')
+        self.assertNotContains(response, 'This product uses the TMDB API but is not endorsed or certified by TMDB.')
         get_recommendations.assert_not_called()
 
     def test_post_returns_recommendation_cards(self):
@@ -285,6 +345,16 @@ class ViewTests(ModelBackedTestCase):
         response = self.client.post('/recommendation', {'movie_name': 'The Matrix'})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'The Matrix Reloaded')
+        self.assertContains(response, 'class="topbar"')
+        self.assertContains(response, 'aria-label="Điều hướng chính"')
+        self.assertNotContains(response, 'class="account-nav"')
+        self.assertContains(response, 'href="/recommendation" class="back-button">← New search</a>')
+        self.assertContains(response, '.logout-button{min-height:38px')
+        self.assertContains(response, '.header{position:relative;top:auto;z-index:auto')
+        self.assertContains(response, '<footer class="site-footer">© ')
+        self.assertContains(response, 'CineRec</footer>')
+        self.assertNotContains(response, 'Made with')
+        self.assertNotContains(response, 'Movie data and images from')
 
     def test_post_with_blank_input_shows_a_message(self):
         response = self.client.post('/', {'movie_name': '   '})
@@ -370,11 +440,292 @@ class ViewTests(ModelBackedTestCase):
         body = response.content.decode()
         self.assertTrue('Page not found' in body, 'custom 404 title missing')
         self.assertTrue('Back to the movies' in body, 'no way back from the 404')
+        self.assertIn('<footer class="site-footer">© ', body)
 
     def test_favicon_redirects(self):
         response = self.client.get('/favicon.ico')
         self.assertEqual(response.status_code, 301)
         self.assertIn('logo.ico', response['Location'])
+
+
+@override_settings(STORAGES=TEST_STORAGES)
+class SearchHistoryRemovalTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='viewer', password='test-password'
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_history_pages_are_removed(self):
+        self.assertEqual(self.client.get('/history/').status_code, 404)
+        self.assertEqual(self.client.post('/history/clear/').status_code, 404)
+
+    def test_recommendation_search_does_not_save_history(self):
+        recommender = Mock()
+        recommender.get_recommendations.return_value = {
+            'query_movie': 'The Matrix',
+            'source_movie': {},
+            'recommendations': [],
+        }
+
+        with patch.object(views, '_get_recommender', return_value=recommender):
+            response = self.client.post('/recommendation', {'movie_name': 'The Matrix'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(SearchHistory.objects.exists())
+
+    @override_settings(TMDB_ACCESS_TOKEN='test-token')
+    @patch.object(tmdb_views.tmdb, 'movie_genres', return_value=[])
+    @patch.object(tmdb_views.tmdb, 'search_movies', return_value=[])
+    def test_tmdb_search_does_not_save_history(self, movie_genres, search_movies):
+        response = self.client.get('/movies/', {'q': 'matrix'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(SearchHistory.objects.exists())
+        search_movies.assert_called_once()
+        movie_genres.assert_called_once()
+
+
+@override_settings(STORAGES=TEST_STORAGES)
+class FavoriteFunctionalityTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='favorite-viewer', password='test-password'
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+        self.metadata = pd.DataFrame([
+            {
+                'id': tmdb_id,
+                'title': 'Same Title',
+                'poster_path': '/same-title.jpg',
+                'release_date': '2020-01-01',
+                'vote_average': 8.0,
+                'vote_count': 100,
+                'genres': ['Drama'],
+                'overview': 'An offline movie.',
+            }
+            for tmdb_id in (42, 43)
+        ])
+
+    @override_settings(TMDB_ACCESS_TOKEN='')
+    @patch('recommender.views._get_recommender')
+    def test_offline_tmdb_movies_can_be_added_and_shown_as_favorites(self, get_recommender):
+        get_recommender.return_value = Mock(metadata=self.metadata)
+
+        for tmdb_id in (42, 43):
+            response = self.client.post(f'/movies/{tmdb_id}/favorite/')
+            self.assertEqual(response.status_code, 302)
+
+        self.assertEqual(FavoriteMovie.objects.filter(user=self.user).count(), 2)
+        self.assertSetEqual(
+            set(FavoriteMovie.objects.filter(user=self.user).values_list('tmdb_id', flat=True)),
+            {42, 43},
+        )
+        response = self.client.get('/movies/42/')
+        self.assertContains(response, 'Bỏ yêu thích')
+        self.assertTrue(
+            MovieInteraction.objects.filter(
+                user=self.user, tmdb_id=42, action='detail'
+            ).exists()
+        )
+
+    def test_removing_tmdb_favorite_from_favorites_stays_on_favorites(self):
+        favorite = FavoriteMovie.objects.create(
+            user=self.user, tmdb_id=42, movie_title='Same Title'
+        )
+        favorites_response = self.client.get('/favorites/')
+        self.assertContains(favorites_response, 'name="return_to" value="favorites"')
+
+        response = self.client.post(
+            '/movies/42/favorite/',
+            {'return_to': 'favorites'},
+        )
+
+        self.assertRedirects(response, '/favorites/', fetch_redirect_response=False)
+        self.assertFalse(FavoriteMovie.objects.filter(pk=favorite.pk).exists())
+        self.assertTrue(
+            MovieInteraction.objects.filter(
+                user=self.user, tmdb_id=42, action='unfavorite'
+            ).exists()
+        )
+
+
+@override_settings(STORAGES=TEST_STORAGES, TMDB_ACCESS_TOKEN='test-token')
+class NavigationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='navigation-viewer', password='test-password'
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_movies_and_favorites_share_the_same_navigation(self):
+        with (
+            patch.object(tmdb_views.tmdb, 'movie_genres', return_value=[]),
+            patch.object(tmdb_views.tmdb, 'popular_movies', return_value=[]),
+            patch.object(tmdb_views.tmdb, 'trending_movies', return_value=[]),
+        ):
+            movies_response = self.client.get('/movies/')
+        favorites_response = self.client.get('/favorites/')
+
+        nav_pattern = r'<nav class="nav-inner"[^>]*>(.*?)</nav>'
+        movies_nav = re.search(nav_pattern, movies_response.content.decode(), re.DOTALL)
+        favorites_nav = re.search(nav_pattern, favorites_response.content.decode(), re.DOTALL)
+        self.assertIsNotNone(movies_nav)
+        self.assertIsNotNone(favorites_nav)
+        self.assertEqual(
+            re.findall(r'<a[^>]+href="([^"]+)"', movies_nav.group(1)),
+            re.findall(r'<a[^>]+href="([^"]+)"', favorites_nav.group(1)),
+        )
+        self.assertNotContains(movies_response, 'Tương tác')
+        self.assertNotContains(favorites_response, 'Tương tác')
+
+    def test_interactions_page_is_removed(self):
+        self.assertEqual(self.client.get('/interactions/').status_code, 404)
+
+    def test_recommendation_results_use_the_shared_logged_in_navigation(self):
+        response = self.client.post('/recommendation', {'movie_name': 'The Matrix'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="logout-button"')
+        self.assertContains(response, 'Gợi ý cho bạn')
+        self.assertContains(response, 'Yêu thích')
+
+    @patch(
+        'recommender.recommendation_views.recommend',
+        side_effect=tmdb_views.tmdb.TMDBError(
+            'Không thể tải thông tin các phim bạn đã tương tác.'
+        ),
+    )
+    def test_unavailable_seed_movie_notice_is_hidden(self, recommend):
+        response = self.client.get('/for-you/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Gợi ý dành cho bạn')
+        self.assertNotContains(response, 'Không thể tải thông tin các phim bạn đã tương tác.')
+        self.assertNotContains(response, 'Chưa có phim gợi ý.')
+        self.assertNotContains(response, 'Điểm phù hợp là điểm xếp hạng nội bộ')
+
+    @patch(
+        'recommender.recommendation_views.recommend',
+        side_effect=tmdb_views.tmdb.TMDBError('Lỗi TMDB khác.'),
+    )
+    def test_other_recommendation_errors_remain_visible(self, recommend):
+        response = self.client.get('/for-you/')
+
+        self.assertContains(response, 'Lỗi TMDB khác.')
+
+    def test_empty_favorites_page_does_not_show_an_empty_state_panel(self):
+        response = self.client.get('/favorites/')
+
+        self.assertContains(response, 'Phim yêu thích')
+        self.assertNotContains(response, 'favorite-empty')
+        self.assertNotContains(response, 'Danh sách của bạn đang trống')
+
+    def test_favorite_is_rendered_as_a_movie_card(self):
+        FavoriteMovie.objects.create(
+            user=self.user,
+            movie_title='The Matrix',
+            tmdb_id=603,
+            poster_path='/matrix.jpg',
+        )
+
+        response = self.client.get('/favorites/')
+
+        self.assertContains(response, 'class="favorite-card"')
+        self.assertContains(response, 'alt="Poster The Matrix"')
+        self.assertContains(response, 'Xem chi tiết')
+        self.assertContains(response, 'Bỏ lưu')
+
+    @override_settings(TMDB_ACCESS_TOKEN='test-token')
+    @patch.object(tmdb_views.tmdb, 'get_movie_details')
+    def test_guest_detail_action_toolbar_fits_its_buttons(self, get_movie_details):
+        get_movie_details.return_value = {
+            'id': 603,
+            'title': 'The Matrix',
+            'release_date': '1999-03-30',
+            'poster_path': '/matrix.jpg',
+            'vote_average': 8.7,
+            'vote_count': 1000,
+            'genres': [],
+            'runtime': 136,
+            'overview': 'A test movie.',
+        }
+        self.client.logout()
+
+        response = self.client.get('/movies/603/')
+
+        self.assertContains(response, 'class="action-toolbar action-toolbar-guest"')
+        self.assertContains(
+            response,
+            '.action-toolbar-guest{width:fit-content;max-width:100%;grid-template-columns:auto auto}',
+        )
+
+    @override_settings(TMDB_ACCESS_TOKEN='test-token')
+    @patch.object(tmdb_views.tmdb, 'get_movie_details')
+    def test_authenticated_detail_renders_the_action_toolbar(self, get_movie_details):
+        get_movie_details.return_value = {
+            'id': 603,
+            'title': 'The Matrix',
+            'release_date': '1999-03-30',
+            'poster_path': '/matrix.jpg',
+            'vote_average': 8.7,
+            'vote_count': 1000,
+            'genres': [],
+            'runtime': 136,
+            'overview': 'A test movie.',
+        }
+
+        response = self.client.get('/movies/603/')
+
+        self.assertContains(response, 'class="action-toolbar"')
+        self.assertContains(response, 'class="toolbar-button toolbar-favorite"')
+        self.assertContains(response, '.toolbar-login{grid-column:auto;justify-self:start}')
+        self.assertContains(response, 'Đánh giá của bạn')
+        self.assertContains(response, 'class="browse-genre-toggle rating-select-toggle"')
+        self.assertContains(response, 'class="browse-genre-menu rating-select-menu"')
+        self.assertContains(response, 'aria-label="1 sao">1 ★')
+        self.assertContains(response, 'Lưu đánh giá')
+
+    @override_settings(TMDB_ACCESS_TOKEN='test-token')
+    @patch.object(tmdb_views.tmdb, 'get_movie_details')
+    def test_existing_rating_is_shown_without_a_rating_form(self, get_movie_details):
+        get_movie_details.return_value = {
+            'id': 603,
+            'title': 'The Matrix',
+            'release_date': '1999-03-30',
+            'poster_path': '/matrix.jpg',
+            'vote_average': 8.7,
+            'vote_count': 1000,
+            'genres': [],
+            'runtime': 136,
+            'overview': 'A test movie.',
+        }
+        MovieRating.objects.create(user=self.user, tmdb_id=603, rating=4)
+
+        response = self.client.get('/movies/603/')
+
+        self.assertContains(response, 'Bạn đã đánh giá')
+        self.assertContains(response, '4 ★')
+        self.assertNotContains(response, 'Lưu đánh giá')
+        self.assertNotContains(response, 'rating-options-603')
+
+    def test_rating_can_only_be_submitted_once(self):
+        first_response = self.client.post('/movies/603/rate/', {'rating': '4'})
+        second_response = self.client.post('/movies/603/rate/', {'rating': '2'})
+
+        self.assertRedirects(first_response, '/movies/603/', fetch_redirect_response=False)
+        self.assertRedirects(second_response, '/movies/603/', fetch_redirect_response=False)
+        rating = MovieRating.objects.get(user=self.user, tmdb_id=603)
+        self.assertEqual(rating.rating, 4)
+        self.assertEqual(
+            MovieInteraction.objects.filter(
+                user=self.user, tmdb_id=603, action='rating'
+            ).count(),
+            1,
+        )
 
 
 @override_settings(STORAGES=TEST_STORAGES)
@@ -407,6 +758,7 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(response.context['average_rating'], 8.5)
         self.assertContains(response, 'The Matrix')
         self.assertContains(response, '/admin/recommender/movie/')
+        self.assertContains(response, '<footer class="site-footer">© ')
         admin_home = self.client.get('/admin/')
         self.assertEqual(admin_home.status_code, 200)
         self.assertContains(admin_home, 'Tổng quan')

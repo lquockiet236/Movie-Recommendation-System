@@ -2,7 +2,7 @@
 
 ## Chức năng
 - Guest: khám phá phim, xem chi tiết, không lưu tương tác.
-- User: lưu/bỏ yêu thích bằng TMDB ID; đánh giá 1–5 sao; lịch sử tìm kiếm; lịch sử tương tác.
+- User: lưu/bỏ yêu thích bằng TMDB ID; đánh giá 1–5 sao; lịch sử tương tác.
 - Admin: quản lý trong Django Admin.
 - Dữ liệu yêu thích cũ (theo tên phim) được giữ nguyên, chưa tự động ghép sang TMDB ID vì có thể trùng tên.
 
@@ -13,7 +13,7 @@
 4. Dùng môi trường `.venv` hiện có hoặc tạo lại: `py -3.12 -m venv .venv`; `.\.venv\Scripts\Activate.ps1`; `pip install -r requirements.txt`.
 5. Thiết lập `TMDB_ACCESS_TOKEN` như giai đoạn 1 (hoặc khôi phục `.env` nếu dự án đang dùng).
 6. Chạy `python manage.py migrate` rồi `python manage.py runserver`.
-7. Mở `/movies/`, chọn phim, thử yêu thích và đánh giá; vào `/favorites/`, `/interactions/`, `/history/`.
+7. Mở `/movies/`, chọn phim, thử yêu thích và đánh giá; vào `/favorites/`.
 
 ## Lưu ý
 - Chưa xây dựng thuật toán xếp hạng cá nhân hóa; đây là dữ liệu nền cho giai đoạn 3.

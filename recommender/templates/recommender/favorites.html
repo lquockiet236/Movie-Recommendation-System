@@ -1,25 +1,107 @@
 {% extends 'recommender/account_base.html' %}
-{% block title %}Phim yêu thích{% endblock %}
+{% block title %}Phim yêu thích · CineRec{% endblock %}
+{% block main_class %}favorites-page{% endblock %}
+{% block extra_styles %}
+{{ block.super }}
+.favorites-page{max-width:1180px;padding-top:48px}
+.favorites-header{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:28px;padding:30px
+34px;border:1px solid var(--border);border-radius:20px;background:radial-gradient(ellipse at 12%
+0,rgba(99,102,241,.18),transparent 48%),linear-gradient(120deg,rgba(30,41,59,.96),rgba(30,41,59,.72));box-shadow:0 18px
+48px rgba(2,6,23,.18)}
+.favorites-eyebrow{margin:0 0 8px;color:#a5b4fc;font-size:12px;font-weight:700;letter-spacing:.14em}
+.favorites-header h1{margin:0;font-size:clamp(30px,4vw,42px)}
+.favorites-description{margin:8px 0 0;color:var(--muted)}
+.favorites-count{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:12px 16px;border:1px solid
+rgba(165,180,252,.2);border-radius:14px;background:rgba(15,23,42,.58);color:var(--muted);font-size:14px}
+.favorites-count strong{color:var(--text);font-size:22px}
+.favorites-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:20px}
+.favorite-card{overflow:hidden;border:1px solid
+var(--border);border-radius:16px;background:linear-gradient(180deg,var(--surface),rgba(15,23,42,.92));box-shadow:0 10px
+28px rgba(2,6,23,.16);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.favorite-card:hover{transform:translateY(-4px);border-color:rgba(99,102,241,.48);box-shadow:0 18px 38px
+rgba(2,6,23,.3)}
+.favorite-artwork{position:relative;aspect-ratio:2/3;overflow:hidden;background:linear-gradient(145deg,#334155,#1e293b)}
+.favorite-artwork img{display:block;width:100%;height:100%;object-fit:cover}
+.favorite-placeholder{display:flex;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#94a3b8;font-size:13px}
+.favorite-placeholder span:first-child{font-size:38px;opacity:.8}
+.favorite-badge{position:absolute;top:11px;left:11px;padding:5px 9px;border:1px solid
+rgba(255,255,255,.15);border-radius:999px;background:rgba(15,23,42,.78);color:#e2e8f0;font-size:11px;font-weight:700;backdrop-filter:blur(8px)}
+.favorite-details{padding:15px}
+.favorite-details h2{margin:0;font-size:16px;line-height:1.4}
+.favorite-details h2 a{color:var(--text)}
+.favorite-details h2 a:hover{color:#c7d2fe}
+.favorite-meta{margin:7px 0 15px;color:#94a3b8;font-size:12px}
+.favorite-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.favorite-details-link{color:#a5b4fc;font-size:13px;font-weight:600}
+.favorite-details-link:hover{color:#c7d2fe}
+.favorite-remove-form{margin:0}
+.favorite-remove-button{display:inline-flex;min-height:34px!important;align-items:center;gap:6px;padding:7px
+10px!important;border:1px solid
+rgba(248,113,113,.22)!important;border-radius:8px!important;background:rgba(127,29,29,.2)!important;color:#fecaca!important;font-size:12px;font-weight:600}
+.favorite-remove-button:hover{border-color:rgba(248,113,113,.5)!important;background:rgba(127,29,29,.38)!important}
+@media(max-width:640px){.favorites-page{padding-top:26px}.favorites-header{align-items:flex-start;flex-direction:column;padding:24px}.favorites-count{padding:8px
+12px}.favorites-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.favorite-details{padding:12px}.favorite-actions{align-items:flex-start;flex-direction:column}.favorite-remove-form{width:100%}.favorite-remove-button{width:100%;justify-content:center}}
+{% endblock %}
 {% block content %}
-<h1>Phim yêu thích</h1>
-<ul>
-{% for item in favorites %}
-<li>
-  {% if item.tmdb_id %}
-  {% if item.poster_path %}<img src="https://image.tmdb.org/t/p/w92{{ item.poster_path }}" alt="" width="52" style="object-fit:cover;border-radius:7px;vertical-align:middle;margin-right:12px">{% endif %}
-  <a href="{% url 'recommender:tmdb_detail' item.tmdb_id %}">{{ item.movie_title }}</a>
-  <form method="post" action="{% url 'recommender:tmdb_favorite' item.tmdb_id %}" style="display:inline;margin-left:10px">
-    {% csrf_token %}<button type="submit">Xóa</button>
-  </form>
-  {% else %}
-  {{ item.movie_title }} <span style="color:#94a3b8">(dữ liệu cũ)</span>
-  <form method="post" action="{% url 'recommender:toggle_favorite' %}" style="display:inline;margin-left:10px">
-    {% csrf_token %}<input type="hidden" name="movie_title" value="{{ item.movie_title }}"><button type="submit">Xóa</button>
-  </form>
-  {% endif %}
-</li>
-{% empty %}
-<li>Bạn chưa lưu phim nào.</li>
-{% endfor %}
-</ul>
+<header class="favorites-header">
+  <div>
+    <p class="favorites-eyebrow">THƯ VIỆN CỦA BẠN</p>
+    <h1>Phim yêu thích</h1>
+  </div>
+  <div class="favorites-count" aria-label="{{ favorites|length }} phim đã lưu">
+    <strong>{{ favorites|length }}</strong>
+    <span>phim đã lưu</span>
+  </div>
+</header>
+
+{% if favorites %}
+<section class="favorites-grid" aria-label="Danh sách phim yêu thích">
+  {% for item in favorites %}
+  <article class="favorite-card">
+    <div class="favorite-artwork">
+      {% if item.poster_path %}
+      <img src="https://image.tmdb.org/t/p/w342{{ item.poster_path }}" alt="Poster {{ item.movie_title }}"
+        loading="lazy">
+      {% else %}
+      <div class="favorite-placeholder" aria-label="Chưa có poster">
+        <span aria-hidden="true">🎞</span>
+        <span>Chưa có poster</span>
+      </div>
+      {% endif %}
+      <span class="favorite-badge">{% if item.tmdb_id %}TMDB{% else %}Đã lưu trước đây{% endif %}</span>
+    </div>
+    <div class="favorite-details">
+      <h2>
+        {% if item.tmdb_id %}
+        <a href="{% url 'recommender:tmdb_detail' item.tmdb_id %}">{{ item.movie_title }}</a>
+        {% else %}
+        {{ item.movie_title }}
+        {% endif %}
+      </h2>
+      <p class="favorite-meta">Đã lưu ngày {{ item.added_at|date:'d/m/Y' }}</p>
+      <div class="favorite-actions">
+        {% if item.tmdb_id %}
+        <a class="favorite-details-link" href="{% url 'recommender:tmdb_detail' item.tmdb_id %}">Xem chi tiết <span
+            aria-hidden="true">→</span></a>
+        <form class="favorite-remove-form" method="post" action="{% url 'recommender:tmdb_favorite' item.tmdb_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="return_to" value="favorites">
+          <button class="favorite-remove-button" type="submit"
+            aria-label="Bỏ {{ item.movie_title }} khỏi danh sách yêu thích">♥ Bỏ lưu</button>
+        </form>
+        {% else %}
+        <span class="favorite-details-link">Phim cũ</span>
+        <form class="favorite-remove-form" method="post" action="{% url 'recommender:toggle_favorite' %}">
+          {% csrf_token %}
+          <input type="hidden" name="movie_title" value="{{ item.movie_title }}">
+          <button class="favorite-remove-button" type="submit"
+            aria-label="Bỏ {{ item.movie_title }} khỏi danh sách yêu thích">♥ Bỏ lưu</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends 'recommender/account_base.html' %}
 {% block title %}Đăng ký · CineRec{% endblock %}
-{% block main_class %}signup-card{% endblock %}
+{% block main_class %}account-main signup-card{% endblock %}
 {% block content %}
 <header class="signup-header">
   <span class="signup-mark" aria-hidden="true">🎬</span>
@@ -14,6 +14,6 @@
 </form>
 <p class="signup-footer">
   Đã có tài khoản? <a href="{% url 'login' %}">Đăng nhập</a>
-  <a class="signup-home" href="{% url 'recommender:main' %}">← Trở về danh sách phim</a>
+  <a class="signup-home" href="{% url 'recommender:tmdb_browse' %}">← Trở về danh sách phim</a>
 </p>
 {% endblock %}

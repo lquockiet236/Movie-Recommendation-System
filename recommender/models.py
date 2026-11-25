@@ -42,7 +42,18 @@ class FavoriteMovie(models.Model):
 
     class Meta:
         ordering = ['-added_at']
-        constraints = [models.UniqueConstraint(fields=['user', 'movie_title'], name='unique_user_favorite_title'), models.UniqueConstraint(fields=['user', 'tmdb_id'], condition=models.Q(tmdb_id__isnull=False), name='unique_user_tmdb_favorite')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'movie_title'],
+                condition=models.Q(tmdb_id__isnull=True),
+                name='unique_user_legacy_favorite_title',
+            ),
+            models.UniqueConstraint(
+                fields=['user', 'tmdb_id'],
+                condition=models.Q(tmdb_id__isnull=False),
+                name='unique_user_tmdb_favorite',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.user}: {self.movie_title}'

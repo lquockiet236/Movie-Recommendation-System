@@ -4,7 +4,7 @@
 - Giữ nguyên website gợi ý dựa trên mô hình cũ tại `/` để không làm mất tính năng.
 - Trang khám phá phim `/movies/`: phim phổ biến, thịnh hành, tìm kiếm tên, lọc thể loại/năm và phân trang.
 - Trang chi tiết `/movies/<tmdb_id>/`: mô tả, poster, thể loại, điểm TMDB, phim tương tự.
-- Khách vãng lai xem phim mà không cần tài khoản; người dùng đăng nhập được lưu lịch sử **tìm kiếm theo tên phim**.
+- Khách vãng lai xem phim mà không cần tài khoản; tìm kiếm không lưu lịch sử của người dùng.
 - Django Admin cũ giữ nguyên tại `/admin/`.
 - Dùng Django cache 15 phút (thể loại 24 giờ), timeout 10 giây, xử lý lỗi khi API không khả dụng.
 

@@ -17,7 +17,7 @@ class MovieAdmin(admin.ModelAdmin):
     search_fields = ("title", "tmdb_id")
     readonly_fields = ("created_at",)
 
-from .models import FavoriteMovie, SearchHistory
+from .models import FavoriteMovie
 
 
 @admin.register(FavoriteMovie)
@@ -25,14 +25,6 @@ class FavoriteMovieAdmin(admin.ModelAdmin):
     list_display = ('user', 'movie_title', 'tmdb_id', 'added_at')
     search_fields = ('user__username', 'movie_title')
     readonly_fields = ('added_at',)
-
-
-@admin.register(SearchHistory)
-class SearchHistoryAdmin(admin.ModelAdmin):
-    list_display = ('user', 'query', 'searched_at')
-    search_fields = ('user__username', 'query')
-    readonly_fields = ('searched_at',)
-
 from .models import MovieInteraction, MovieRating
 
 @admin.register(MovieInteraction)

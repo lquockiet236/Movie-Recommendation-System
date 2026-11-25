@@ -8,7 +8,7 @@
    py -3.12 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    pip install -r requirements.txt
-   $env:TMDB_ACCESS_TOKEN="eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjNTQ0NmQzM2RlN2QxMzk0YzQ4YTk3NGNkZmJmZGYwMSIsIm5iZiI6MTc5NDYzOTY1OC44OTMsInN1YiI6IjZhZjgwNzJhYzBiMTk2NjU3NjMyODVmYSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.opZHn3XnfBMOZDw96wCxg1uX-t5RIn701UXPHG3l4aE"
+   $env:TMDB_ACCESS_TOKEN="YOUR_TMDB_READ_ACCESS_TOKEN"
    python manage.py runserver"
    python manage.py migrate
    python manage.py runserver
@@ -17,7 +17,7 @@
 5. Thử yêu thích/đánh giá vài phim, tải lại trang Gợi ý dành cho bạn và so sánh với một tài khoản khác.
 
 ## Thuật toán
-- Nguồn phim: TMDB API; SQLite chỉ lưu tài khoản, yêu thích, rating và lịch sử.
+- Nguồn phim: TMDB API; SQLite chỉ lưu tài khoản, yêu thích, rating và lịch sử tương tác phim.
 - Hạt giống: yêu thích (trọng số 3), đánh giá 4–5 sao (trọng số tăng theo sao), lượt mở chi tiết gần đây (0.25, mỗi phim tính một lần).
 - Ứng viên: Similar của tối đa 3 phim hạt giống, Discover theo tối đa 3 thể loại ưu tiên, Popular để mở rộng.
 - TF-IDF + cosine tính trên hồ sơ sở thích và mô tả/thể loại của danh sách ứng viên; thể loại và từ khóa có trọng số lớn hơn mô tả.

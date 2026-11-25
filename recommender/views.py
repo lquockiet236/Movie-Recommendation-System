@@ -21,10 +21,11 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.core.cache import cache
 from django.db.models import Avg
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
-from .models import Movie, SearchHistory
+from .models import Movie
 
 logger = logging.getLogger(__name__)
 
@@ -540,11 +541,13 @@ def _base_context(**extra) -> dict:
 
 @require_http_methods(["GET", "POST"])
 def main(request):
-    """Show the movie catalogue on entry and keep POST recommendations working."""
+    """Redirect GET requests to the catalogue and keep POST recommendations working."""
     if request.method == 'GET':
-        from .tmdb_views import browse
-
-        return browse(request)
+        target = reverse('recommender:tmdb_browse')
+        query_string = request.GET.urlencode()
+        if query_string:
+            target = f'{target}?{query_string}'
+        return redirect(target)
     return _recommend_movies(request)
 
 
@@ -597,9 +600,6 @@ def _recommend_movies(request):
             'error_message': result['error'],
             'suggestions': result.get('suggestions', []),
         })
-
-    if request.user.is_authenticated:
-        SearchHistory.objects.create(user=request.user, query=movie_name)
 
     return render(request, 'recommender/result.html', {
         'input_movie_name': result['query_movie'],

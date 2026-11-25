@@ -42,6 +42,8 @@
         }
 
         body {
+            display: flex;
+            flex-direction: column;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: linear-gradient(135deg, var(--background) 0%, #1a1f3a 100%);
             color: var(--text-primary);
@@ -176,6 +178,8 @@
 
         .container {
             max-width: 1200px;
+            width: 100%;
+            flex: 1;
             margin: 0 auto;
             padding: 1.5rem 1rem 4rem;
         }
@@ -385,22 +389,6 @@
             color: var(--primary-color);
         }
 
-        .attribution {
-            margin-top: 0.5rem;
-            font-size: 0.78rem;
-            opacity: 0.75;
-        }
-
-        .attribution a { color: inherit; }
-
-        .footer {
-            text-align: center;
-            padding: 2rem 1rem;
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
         @keyframes fadeInDown {
             from { opacity: 0; transform: translateY(-30px); }
             to { opacity: 1; transform: translateY(0); }
@@ -445,28 +433,31 @@
             .js .movie-card.reveal { opacity: 1; transform: none; }
         }
     </style>
-<style>.account-nav{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;padding:12px;background:#1e293b;color:#f1f5f9}.account-nav a{color:#a5b4fc;text-decoration:none}.account-nav button,.favorite-form button{background:#6366f1;color:white;border:0;border-radius:8px;padding:9px 12px;cursor:pointer}.favorite-form{margin-top:10px}.favorite-form button{width:100%}</style></head>
+<style>
+    .topbar{position:sticky;top:0;z-index:20;background:rgba(30,41,59,.92);border-bottom:1px solid rgba(148,163,184,.16);backdrop-filter:blur(16px)}
+    .nav-inner{max-width:1150px;margin:auto;padding:12px 16px;display:flex;align-items:center;gap:8px}
+    .brand{display:flex;align-items:center;gap:9px;margin-right:auto;color:#f1f5f9;text-decoration:none;font-weight:700}
+    .brand-mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#6366f1,#8b5cf6)}
+    .nav-link{padding:8px 10px;border-radius:8px;color:#cbd5e1;text-decoration:none;font-size:14px;font-weight:500}
+    .nav-link:hover{background:rgba(99,102,241,.12);color:#f1f5f9}
+    .logout-button{min-height:38px;padding:8px 12px!important;border:0;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font:600 14px/1.2 Inter,sans-serif;cursor:pointer;transition:filter .2s,transform .2s}
+    .logout-button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+    .header{position:relative;top:auto;z-index:auto;max-width:1200px;margin:24px auto 0;border:1px solid rgba(148,163,184,.16);border-radius:16px}
+    .favorite-form{margin-top:10px}.favorite-form button{background:#6366f1;color:white;border:0;border-radius:8px;padding:9px 12px;cursor:pointer}
+    .favorite-form button{width:100%}
+    .site-footer{text-align:center;margin-top:3rem;padding:1.5rem 1rem;border-top:1px solid rgba(148,163,184,.16);color:#94a3b8;font-size:.875rem}
+    @media(max-width:760px){.nav-inner{overflow-x:auto}.nav-link{white-space:nowrap}}
+</style></head>
 <body>
-<nav class="account-nav" aria-label="Tài khoản">
-<a href="{% url 'recommender:main' %}">Trang chủ</a>
-{% if user.is_authenticated %}
-<a href="{% url 'recommender:favorites' %}">❤️ Yêu thích</a>
-<a href="{% url 'recommender:history' %}">🕘 Lịch sử</a>
-{% if user.is_staff %}<a href="{% url 'admin:index' %}">Quản trị</a>{% endif %}
-<span>{{ user.username }}</span>
-<form method="post" action="{% url 'logout' %}" style="display:inline">{% csrf_token %}<button type="submit">Đăng xuất</button></form>
-{% else %}
-<a href="{% url 'login' %}">Đăng nhập</a><a href="{% url 'recommender:signup' %}">Đăng ký</a>
-{% endif %}
-</nav>
+{% include 'recommender/navigation.html' %}
     <div class="background-animation" aria-hidden="true"></div>
 
     <header class="header">
         <div class="header-content">
-            <a href="{% url 'recommender:main' %}" class="logo-link">
+            <a href="{% url 'recommender:tmdb_browse' %}" class="logo-link">
                 <span>🎬 Movie Recommendation System</span>
             </a>
-            <a href="{% url 'recommender:main' %}" class="back-button">← New search</a>
+            <a href="{% url 'recommender:recommend' %}" class="back-button">← New search</a>
         </div>
     </header>
 
@@ -552,15 +543,12 @@
             <div class="no-results-icon" aria-hidden="true">😕</div>
             <h2>No recommendations found</h2>
             <p>We couldn't find anything similar to this film. Try another title.</p>
-            <p style="margin-top:1.5rem"><a href="{% url 'recommender:main' %}" class="back-button">← Try another search</a></p>
+            <p style="margin-top:1.5rem"><a href="{% url 'recommender:tmdb_browse' %}" class="back-button">← Try another search</a></p>
         </div>
         {% endif %}
     </main>
 
-    <footer class="footer">
-        <p>Made with ❤️ for movie lovers | © {% now "Y" %} Movie Recommendation System</p>
-        <p class="attribution">Movie data and images from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDB</a>. This product uses data from TMDB but is not endorsed or certified by TMDB.</p>
-    </footer>
+    {% include 'recommender/site_footer.html' %}
 
     <script>
     (function () {

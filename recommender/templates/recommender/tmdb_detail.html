@@ -2,7 +2,6 @@
 {% block title %}{% if movie %}{{ movie.title }}{% else %}Chi tiết phim{% endif %}{% endblock %}
 {% block content %}
 <a class="back-link" href="{% url 'recommender:tmdb_browse' %}">← Quay lại khám phá phim</a>
-{% if fallback %}<p class="muted">{{ fallback }}</p>{% endif %}
 {% if error %}
 <p class="error">{{ error }}</p>
 {% elif movie %}
@@ -18,29 +17,160 @@
     </div>
     <p class="muted"><strong>Thời lượng:</strong> {{ movie.runtime|default:'Chưa rõ' }} phút</p>
     <p class="overview">{{ movie.overview|default:'Chưa có mô tả tiếng Việt.' }}</p>
-    <div class="action-panel">
-      <a class="recommend-detail-link" href="{% url 'recommender:recommend' %}?movie={{ movie.title|urlencode }}">✨ Tìm phim tương tự</a>
+    <div class="action-toolbar{% if not user.is_authenticated %} action-toolbar-guest{% endif %}" aria-label="Thao tác phim">
+      <a class="toolbar-button toolbar-recommend" href="{% url 'recommender:recommend' %}?movie={{ movie.title|urlencode }}">
+        <span aria-hidden="true">✦</span>Tìm phim tương tự
+      </a>
       {% if user.is_authenticated %}
       <form method="post" action="{% url 'recommender:tmdb_favorite' movie.id %}">
         {% csrf_token %}
-        <button type="submit">{% if is_favorite %}♥ Bỏ yêu thích{% else %}♡ Thêm yêu thích{% endif %}</button>
+        <button class="toolbar-button toolbar-favorite" type="submit">
+          <span aria-hidden="true">{% if is_favorite %}♥{% else %}♡{% endif %}</span>
+          {% if is_favorite %}Bỏ yêu thích{% else %}Thêm yêu thích{% endif %}
+        </button>
       </form>
-      <form method="post" action="{% url 'recommender:tmdb_rate' movie.id %}">
-        {% csrf_token %}
-        <label>Đánh giá
-          <select name="rating" required aria-label="Đánh giá phim">
-            <option value="">Chọn điểm</option>
-            {% for n in '12345' %}<option value="{{ n }}" {% if my_rating|stringformat:'s' == n %}selected{% endif %}>{{ n }} sao</option>{% endfor %}
-          </select>
-        </label>
-        <button type="submit">Lưu</button>
-      </form>
+      {% if my_rating %}
+        <div class="rating-complete" role="status" aria-label="Bạn đã đánh giá {{ my_rating }} sao">
+          <span>Bạn đã đánh giá</span>
+          <strong aria-hidden="true">{{ my_rating }} ★</strong>
+        </div>
       {% else %}
-      <p><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Đăng nhập</a> để yêu thích và đánh giá phim.</p>
+      <form class="rating-action" method="post" action="{% url 'recommender:tmdb_rate' movie.id %}">
+        {% csrf_token %}
+        <label for="movie-rating-{{ movie.id }}">Đánh giá của bạn</label>
+        <div class="rating-select-wrap browse-genre-wrap">
+          <select id="movie-rating-{{ movie.id }}" class="rating-native-select" name="rating" required aria-label="Đánh giá phim">
+            <option value="">Chọn điểm</option>
+            {% for n in '12345' %}<option value="{{ n }}" aria-label="{{ n }} sao">{{ n }} ★</option>{% endfor %}
+          </select>
+          <div class="browse-genre-control rating-select-control">
+            <button class="browse-genre-toggle rating-select-toggle" type="button" aria-label="Đánh giá phim"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="rating-options-{{ movie.id }}"
+                    aria-required="true">
+              <span class="rating-select-label">Chọn điểm</span>
+              <svg class="browse-genre-chevron" aria-hidden="true" viewBox="0 0 20 20" fill="none">
+                <path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.8"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div class="browse-genre-menu rating-select-menu" id="rating-options-{{ movie.id }}"
+                 role="listbox" aria-label="Chọn điểm đánh giá" hidden></div>
+          </div>
+        </div>
+        <button type="submit">Lưu đánh giá</button>
+      </form>
+      <script>
+        (function () {
+          var wrapper = document.querySelector('.rating-select-wrap');
+          var select = wrapper.querySelector('.rating-native-select');
+          var toggle = wrapper.querySelector('.rating-select-toggle');
+          var label = wrapper.querySelector('.rating-select-label');
+          var menu = wrapper.querySelector('.rating-select-menu');
+          var options = [];
+
+          function syncSelection() {
+            var selected = select.options[select.selectedIndex];
+            label.textContent = selected.text;
+            toggle.setAttribute('aria-label',
+              selected.value ? 'Đánh giá phim: ' + selected.value + ' sao' : 'Đánh giá phim');
+            options.forEach(function (option, index) {
+              option.setAttribute('aria-selected',
+                select.options[index].value === select.value ? 'true' : 'false');
+            });
+          }
+
+          function closeMenu(returnFocus) {
+            menu.hidden = true;
+            toggle.setAttribute('aria-expanded', 'false');
+            if (returnFocus) { toggle.focus(); }
+          }
+
+          function openMenu(focusSelection) {
+            menu.hidden = false;
+            menu.style.maxHeight = 'none';
+            var bounds = toggle.getBoundingClientRect();
+            var available = Math.max(0, window.innerHeight - bounds.bottom - 12);
+            menu.style.maxHeight = Math.min(320, available) + 'px';
+            toggle.setAttribute('aria-expanded', 'true');
+
+            if (focusSelection) {
+              var selected = options.find(function (option) {
+                return option.getAttribute('aria-selected') === 'true';
+              });
+              (selected || options[0]).focus();
+            }
+          }
+
+          Array.prototype.forEach.call(select.options, function (item) {
+            var option = document.createElement('button');
+            option.className = 'browse-genre-option';
+            option.type = 'button';
+            option.setAttribute('role', 'option');
+            option.setAttribute('aria-selected', 'false');
+            option.setAttribute('aria-label', item.getAttribute('aria-label') || item.text);
+            option.textContent = item.text;
+            option.addEventListener('click', function () {
+              select.value = item.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              closeMenu(true);
+            });
+            option.addEventListener('keydown', function (event) {
+              var index = options.indexOf(option);
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                var direction = event.key === 'ArrowDown' ? 1 : -1;
+                options[(index + direction + options.length) % options.length].focus();
+              } else if (event.key === 'Home' || event.key === 'End') {
+                event.preventDefault();
+                options[event.key === 'Home' ? 0 : options.length - 1].focus();
+              } else if (event.key === 'Escape') {
+                event.preventDefault();
+                closeMenu(true);
+              }
+            });
+            menu.appendChild(option);
+            options.push(option);
+          });
+
+          toggle.addEventListener('click', function () {
+            if (menu.hidden) { openMenu(false); }
+            else { closeMenu(false); }
+          });
+          toggle.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              openMenu(true);
+            } else if (event.key === 'Escape') {
+              closeMenu(false);
+            }
+          });
+          select.addEventListener('change', syncSelection);
+          select.addEventListener('invalid', function (event) {
+            event.preventDefault();
+            openMenu(false);
+            toggle.focus();
+          });
+          wrapper.addEventListener('focusout', function (event) {
+            if (!wrapper.contains(event.relatedTarget)) { closeMenu(false); }
+          });
+          document.addEventListener('click', function (event) {
+            if (!wrapper.contains(event.target)) { closeMenu(false); }
+          });
+
+          syncSelection();
+          select.setAttribute('aria-hidden', 'true');
+          select.tabIndex = -1;
+          document.documentElement.classList.add('js');
+        })();
+      </script>
+      {% endif %}
+      {% else %}
+      <a class="toolbar-button toolbar-recommend toolbar-login" href="{% url 'login' %}?next={{ request.path|urlencode }}">
+        Đăng nhập để yêu thích và đánh giá
+      </a>
       {% endif %}
     </div>
   </div>
 </div>
 {% endif %}
-<p class="muted section">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 {% endblock %}

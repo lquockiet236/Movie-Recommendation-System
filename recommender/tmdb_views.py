@@ -4,7 +4,7 @@ from datetime import date
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 from . import tmdb_service as tmdb
-from .models import SearchHistory, FavoriteMovie, MovieRating, MovieInteraction
+from .models import FavoriteMovie, MovieRating, MovieInteraction
 
 MOVIES_PER_PAGE = 24
 TMDB_PAGE_SIZE = 20
@@ -63,6 +63,37 @@ def _genre_key(value):
     return ''.join(char for char in str(value).lower() if char.isalnum())
 
 
+def get_offline_movie_details(tmdb_id):
+    from .views import _get_recommender
+
+    recommender = _get_recommender()
+    if recommender is None:
+        return None
+    match = recommender.metadata[recommender.metadata['id'] == tmdb_id]
+    if match.empty:
+        return None
+
+    movie = match.iloc[0]
+    raw_genres = movie.get('genres')
+    if hasattr(raw_genres, 'tolist'):
+        genres = raw_genres.tolist()
+    elif isinstance(raw_genres, (list, tuple)):
+        genres = list(raw_genres)
+    else:
+        genres = []
+    return {
+        'id': int(movie['id']),
+        'title': str(movie['title']),
+        'release_date': str(movie.get('release_date') or ''),
+        'poster_path': str(movie.get('poster_path') or ''),
+        'vote_average': float(movie.get('vote_average') or 0),
+        'vote_count': int(movie.get('vote_count') or 0),
+        'genres': [{'name': str(item).replace('sciencefiction', 'Science Fiction').title()} for item in genres],
+        'runtime': None,
+        'overview': str(movie.get('overview') or ''),
+    }
+
+
 @require_GET
 def browse(request):
     query = request.GET.get('q', '').strip()[:120]
@@ -70,7 +101,10 @@ def browse(request):
     year = request.GET.get('year', '').strip()
     page = _page(request.GET.get('page'))
     genre = genre if genre.isdigit() and len(genre) <= 8 else ''
-    year = year if year.isdigit() and 1900 <= int(year) <= date.today().year + 3 else ''
+    year = (
+        year if len(year) == 4 and year.isascii() and year.isdigit()
+        and 1900 <= int(year) <= date.today().year + 3 else ''
+    )
     context = {'query': query, 'selected_genre': genre, 'year': year, 'page': page,
                'movies': [], 'genres': [], 'error': None, 'mode': 'popular'}
     if not tmdb.settings.TMDB_ACCESS_TOKEN:
@@ -143,8 +177,6 @@ def browse(request):
             context['movies'] = _page_movies(
                 lambda api_page: tmdb.search_movies(query, api_page), page
             )
-            if request.user.is_authenticated and page == 1:
-                SearchHistory.objects.create(user=request.user, query=query)
         elif genre or year:
             context['mode'] = 'discover'
             context['movies'] = _page_movies(
@@ -159,44 +191,29 @@ def browse(request):
     return render(request, 'recommender/tmdb_browse.html', context)
 
 
+def _set_movie_user_context(request, context, tmdb_id):
+    if not request.user.is_authenticated:
+        return
+    context['is_favorite'] = FavoriteMovie.objects.filter(user=request.user, tmdb_id=tmdb_id).exists()
+    context['my_rating'] = MovieRating.objects.filter(
+        user=request.user, tmdb_id=tmdb_id
+    ).values_list('rating', flat=True).first()
+    MovieInteraction.objects.create(user=request.user, tmdb_id=tmdb_id, action='detail')
+
+
 @require_GET
 def detail(request, tmdb_id):
     context = {'movie': None, 'similar': [], 'error': None}
     if not tmdb.settings.TMDB_ACCESS_TOKEN:
-        from .views import _get_recommender
-
-        recommender = _get_recommender()
-        if recommender is not None:
-            match = recommender.metadata[recommender.metadata['id'] == tmdb_id]
-            if not match.empty:
-                movie = match.iloc[0]
-                raw_genres = movie.get('genres')
-                if hasattr(raw_genres, 'tolist'):
-                    genres = raw_genres.tolist()
-                elif isinstance(raw_genres, (list, tuple)):
-                    genres = list(raw_genres)
-                else:
-                    genres = []
-                context['movie'] = {
-                    'id': int(movie['id']),
-                    'title': str(movie['title']),
-                    'release_date': str(movie.get('release_date') or ''),
-                    'poster_path': str(movie.get('poster_path') or ''),
-                    'vote_average': float(movie.get('vote_average') or 0),
-                    'vote_count': int(movie.get('vote_count') or 0),
-                    'genres': [{'name': str(item).replace('sciencefiction', 'Science Fiction').title()} for item in genres],
-                    'runtime': None,
-                    'overview': str(movie.get('overview') or ''),
-                }
-                context['fallback'] = 'Chi tiết offline từ model demo.'
-                return render(request, 'recommender/tmdb_detail.html', context)
+        context['movie'] = get_offline_movie_details(tmdb_id)
+        if context['movie']:
+            _set_movie_user_context(request, context, tmdb_id)
+            return render(request, 'recommender/tmdb_detail.html', context)
 
     try:
         context['movie'] = tmdb.get_movie_details(tmdb_id)
     except tmdb.TMDBError as exc:
         context['error'] = str(exc)
-    if context['movie'] and request.user.is_authenticated:
-        context['is_favorite'] = FavoriteMovie.objects.filter(user=request.user, tmdb_id=tmdb_id).exists()
-        context['my_rating'] = MovieRating.objects.filter(user=request.user, tmdb_id=tmdb_id).values_list('rating', flat=True).first()
-        MovieInteraction.objects.create(user=request.user, tmdb_id=tmdb_id, action='detail')
+    if context['movie']:
+        _set_movie_user_context(request, context, tmdb_id)
     return render(request, 'recommender/tmdb_detail.html', context)

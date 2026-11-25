@@ -16,11 +16,8 @@ urlpatterns = [
     path('accounts/signup/', account_views.signup, name='signup'),
     path('movies/<int:tmdb_id>/favorite/', account_views.toggle_tmdb_favorite, name='tmdb_favorite'),
     path('movies/<int:tmdb_id>/rate/', account_views.rate_tmdb_movie, name='tmdb_rate'),
-    path('interactions/', account_views.interactions, name='interactions'),
     path('favorites/', account_views.favorites, name='favorites'),
     path('favorites/toggle/', account_views.toggle_favorite, name='toggle_favorite'),
-    path('history/', account_views.history, name='history'),
-    path('history/clear/', account_views.clear_history, name='clear_history'),
     # Main views
     path('', views.main, name='main'),
 

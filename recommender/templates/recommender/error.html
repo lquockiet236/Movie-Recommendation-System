@@ -28,6 +28,16 @@
             justify-content: center;
             padding: 2rem;
         }
+        .site-footer {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            padding: 1rem;
+            color: #94a3b8;
+            font-size: .875rem;
+            text-align: center;
+        }
 
         .error-container {
             text-align: center;
@@ -104,8 +114,9 @@
         <div class="error-icon">{{ error_icon|default:"😕" }}</div>
         <h1>{{ error_title|default:"Oops! Something went wrong" }}</h1>
         <p>{{ error_message|default:"An unexpected error occurred. Please try again later." }}</p>
-        <a href="/" class="home-button">← Back to the movies</a>
+        <a href="/movies/" class="home-button">← Back to the movies</a>
     </div>
+    {% include 'recommender/site_footer.html' %}
 </body>
 </html>
 

@@ -1,1195 +1,360 @@
-1# 📘 Movie Recommendation System - Complete Project Guide
+# CineRec — Hướng dẫn cài đặt và mô tả dự án
 
-> **Comprehensive technical documentation** for developers, covering installation, configuration, development, deployment, and troubleshooting.
+Tài liệu này mô tả phiên bản hiện tại của CineRec: cách cài đặt, chạy, cấu hình, sử dụng, kiểm thử và triển khai; đồng thời giải thích các thành phần chính và hai luồng gợi ý phim. Các lệnh dưới đây giả định đang chạy từ thư mục gốc có `manage.py`.
 
----
+## 1. Tổng quan
 
-## 📑 Table of Contents
+CineRec là ứng dụng web Django kết hợp dữ liệu phim TMDB với mô hình gợi ý nội dung chạy offline. Ứng dụng cung cấp:
 
-### Getting Started
-- [Overview](#-overview)
-- [Prerequisites](#-prerequisites)
-- [Installation](#-installation)
-- [Quick Verification](#-quick-verification)
+- Duyệt, tìm kiếm, lọc phim theo thể loại/năm và phân trang.
+- Trang chi tiết phim, thao tác yêu thích và đánh giá.
+- Gợi ý phim tương tự từ mô hình offline.
+- Gợi ý cá nhân hóa cho tài khoản đã đăng nhập, kết hợp nội dung và tín hiệu từ người dùng tương tự.
+- Đăng ký, đăng nhập, danh sách yêu thích, Django Admin và trang đánh giá thuật toán.
+- API tìm kiếm nhanh, trạng thái tải mô hình và health check.
 
-### Core Functionality
-- [Project Architecture](#-project-architecture)
-- [How It Works](#-how-it-works)
-- [Model Training](#-model-training)
-- [Using Different Models](#-using-different-models)
+Hai nguồn dữ liệu cần phân biệt:
 
-### Configuration & Development
-- [Configuration](#-configuration)
-- [Development Guide](#-development-guide)
-- [Testing](#-testing)
+1. **Mô hình offline**: metadata và các phim láng giềng được tính trước, lưu trong `demo_model/` hoặc thư mục mô hình tùy chỉnh. Dùng cho luồng tìm phim tương tự và làm dữ liệu dự phòng khi duyệt phim không có token TMDB.
+2. **TMDB API**: cung cấp dữ liệu phim trực tuyến khi cấu hình `TMDB_ACCESS_TOKEN`. Dùng cho duyệt phim và ứng viên của gợi ý cá nhân hóa.
 
-### Deployment
-- [Deployment](#-deployment)
-  - [Render](#deploy-to-render)
-  - [Heroku](#deploy-to-heroku)
-  - [Docker](#deploy-with-docker)
-  - [AWS](#deploy-to-aws)
+SQLite lưu dữ liệu tài khoản, session, phim được lưu trong cơ sở dữ liệu, yêu thích, đánh giá và tương tác. SQLite không thay thế danh mục Parquet/NumPy của mô hình offline.
 
-### Reference
-- [API Reference](#-api-reference)
-- [Command Reference](#-command-reference)
-- [Troubleshooting](#-troubleshooting)
-- [Best Practices](#-best-practices)
-- [FAQ](#-faq)
+## 2. Yêu cầu
 
----
+- Python 3.12 trở lên được khuyến nghị; Django 6 yêu cầu Python mới hơn các bản Django trước.
+- pip và `venv` (đi kèm Python).
+- Kết nối Internet nếu muốn tải phim trực tiếp từ TMDB hoặc cài các gói.
+- Token TMDB Read Access tùy chọn để bật dữ liệu trực tuyến.
+- Dữ liệu CSV chỉ cần khi tự huấn luyện mô hình; không cần để chạy mô hình mẫu.
 
-## 🎯 Overview
+## 3. Cài đặt và chạy trên Windows
 
-This guide provides comprehensive documentation for the Movie Recommendation System, a production-ready Django application that delivers intelligent movie recommendations using advanced machine learning algorithms.
+### Lần đầu lấy project từ GitHub
 
-### What This Guide Covers
-
-- ✅ **Installation**: Step-by-step setup instructions
-- ✅ **Configuration**: Environment variables and settings
-- ✅ **Model Training**: Creating custom recommendation models
-- ✅ **Development**: Working with the codebase
-- ✅ **Deployment**: Production deployment guides
-- ✅ **API Reference**: Complete endpoint documentation
-- ✅ **Troubleshooting**: Common issues and solutions
-
-### Related Documentation
-
-- **[README.md](README.md)** - Project overview and quick start
-- **[training/guide.md](training/guide.md)** - Detailed model training documentation
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
-
----
-
-## ✅ Prerequisites
-
-### System Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| **Python** | 3.11+ | 3.12 |
-| **RAM** | 4GB | 8GB+ |
-| **Storage** | 2GB | 5GB+ |
-| **OS** | Windows/macOS/Linux | Any |
-
-### Required Software
-
-- **Python 3.11 or higher** - [Download here](https://www.python.org/downloads/) (numpy 2.3+ requires 3.11)
-- **pip** - Python package manager (included with Python)
-- **Git** - Version control [Download here](https://git-scm.com/)
-- **Virtual environment tool** - venv (included with Python)
-
-### Optional Software
-
-- **PostgreSQL** - For production database
-- **Redis** - For caching (production)
-- **Docker** - For containerized deployment
-
----
-
-## 💻 Installation
-
-### Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/inboxpraveen/Movie-Recommendation-System.git
-cd Movie-Recommendation-System
-```
-
-### Step 2: Create Virtual Environment
-
-```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-
-# macOS/Linux:
-source venv/bin/activate
-```
-
-**Verification**: Your terminal should show `(venv)` prefix.
-
-### Step 3: Install Dependencies
-
-```bash
-# Upgrade pip
-pip install --upgrade pip
-
-# Install project dependencies
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-**Expected output**: All packages installed successfully without errors.
-
-### Step 4: Database Setup
-
-```bash
-# Run database migrations
 python manage.py migrate
-```
-
-**Output**: Should show migrations applied successfully.
-
-### Step 5: Start Development Server
-
-```bash
 python manage.py runserver
 ```
 
-**Output**: 
-```
-Starting development server at http://127.0.0.1:8000/
-```
+Thay `OWNER/REPOSITORY` bằng tài khoản và tên repository GitHub của bạn; `REPOSITORY` ở lệnh `cd` là tên thư mục được tạo sau khi clone. Nếu repository riêng tư, người dùng cần được cấp quyền GitHub.
 
-### Step 6: Verify Installation
+Mở <http://127.0.0.1:8000/movies/> trong trình duyệt. Đường dẫn `/` chuyển hướng đến `/movies/`. Mô hình mẫu đã nằm trong repository nên có thể dùng luồng offline ngay; không cần tải CSV hay TMDB token để khởi động.
 
-Open your browser and navigate to:
-```
-http://localhost:8000
-```
+### Cập nhật project khi có commit mới
 
-You should see the Movie Recommendation System home page. ✅
+Trong thư mục đã clone, dừng server đang chạy bằng `Ctrl+C`, mở PowerShell tại thư mục đó rồi chạy:
 
----
-
-## ✓ Quick Verification
-
-Run these commands to verify everything is working:
-
-```bash
-# 1. Check Python version
-python --version
-# Expected: Python 3.11.x or higher
-
-# 2. Check Django installation
-python manage.py --version
-# Expected: Django version number
-
-# 3. Test health endpoint
-curl http://localhost:8000/api/health/
-# Expected: {"status": "healthy", ...}
-
-# 4. Test search API
-curl "http://localhost:8000/api/search/?q=matrix"
-# Expected: {"movies": [...], "count": ...}
-```
-
----
-
-## 🏗️ Project Architecture
-
-### High-Level Architecture
-
-![Project Architecture](./assets/images-for-readme/Architecture.png)
-
-### Component Breakdown
-
-#### Django Application (`movie_recommendation/`)
-- **settings.py**: Configuration and environment settings
-- **urls.py**: URL routing to apps
-- **wsgi.py**: WSGI application entry point
-
-#### Recommender App (`recommender/`)
-- **views.py**: Core recommendation logic
-  - `MovieRecommender` class (model loading, recommendations)
-  - View functions (main, search_movies, health_check)
-- **urls.py**: URL patterns for the app
-- **templates/**: HTML templates with inline CSS
-
-#### Model Files (`demo_model/`, `models/`, or wherever `MODEL_DIR` points)
-- **movie_metadata.parquet**: Movie information (title, rating, genres, etc.)
-- **neighbors_idx.npy** / **neighbors_scores.npy**: Top-K most similar movies
-  per title. This is the default and by far the most compact format.
-- **similarity_matrix.npz** / **.npy**: Full similarity matrix (legacy format,
-  written only with `--legacy-matrix`). Still readable, but it costs
-  `n * n * 4` bytes -- around 10 GB at 50,000 movies.
-- **title_to_idx.json**: Mapping from titles to indices
-- **config.json**: Model metadata (movie count, format, top-K)
-- **tfidf_vectorizer.pkl**: TF-IDF model (for future retraining; not loaded by
-  the web app)
-- **svd_model.pkl**: SVD dimensionality reduction model (likewise unused at
-  serving time)
-
-#### Training Scripts (`training/`)
-- **train.py**: Complete training pipeline
-- **infer.py**: Inference examples and usage
-- **guide.md**: Training documentation
-
----
-
-## 🔍 How It Works
-
-### Recommendation Pipeline
-
-```
-1. User Input
-   └─> "Inception"
-
-2. Title Matching
-   └─> Exact, then prefix, then substring, then fuzzy
-       └─> "Inception" (exact match)
-
-3. Get Movie Index
-   └─> title_to_idx["Inception"] = 42
-
-4. Read Precomputed Neighbours
-   └─> neighbors_idx[42]    = [118, 3071, 977, ...]   (memory-mapped)
-   └─> neighbors_scores[42] = [0.62, 0.55, 0.53, ...]
-
-5. Filter
-   └─> Drop the input movie, keep the first 15
-   └─> Over-fetch first when a minimum rating is set
-
-6. Build Response
-   └─> Look up metadata rows, format ratings, genres, links
-
-7. Display Results
-   └─> Render cards with ratings, genres, similarity, links
-```
-
-The neighbour arrays are produced by the trainer, so a search never computes
-similarity at request time; it reads one row.
-
-### Content-Based Filtering
-
-The system uses **content-based filtering** with these features:
-
-1. **TF-IDF Vectorization**
-   - Converts movie features (genres, keywords, plot) into numerical vectors
-   - Captures importance of terms relative to corpus
-
-2. **SVD Dimensionality Reduction** (optional)
-   - Reduces feature space from thousands to 300-600 dimensions
-   - Captures latent patterns and reduces noise
-   - Makes computation more efficient
-
-3. **Cosine Similarity**
-   - Measures similarity between movie vectors
-   - Ranges from 0 (completely different) to 1 (identical)
-
-4. **Top-K Neighbours**
-   - The trainer keeps the 50 most similar movies per title
-   - The web app returns the best 15, optionally above a minimum rating
-   - `training/infer.py` adds year and genre filters for use from your own code
-
-For more details, see [training/guide.md - How It Works](training/guide.md)
-
----
-
-## 🎓 Model Training
-
-### Overview
-
-The system supports two model sources:
-
-1. **Your own model** - trained from any TMDB-shaped CSV with `training/train.py`
-2. **Custom Model** (train your own) - 10K to 1M+ movies
-
-### Pointing at an existing model
-
-```bash
-# Any directory holding config.json, title_to_idx.json,
-# movie_metadata.parquet and the similarity data
-export MODEL_DIR=models
-python manage.py runserver
-```
-
-`demo_model/` is committed and is one of the directories searched
-automatically, so you only need `MODEL_DIR` when using a model of your own. If
-no model is found anywhere the site still starts, `/` explains what is missing,
-and `/api/health/` returns `503`.
-
-### Training Your Own Model
-
-For complete training documentation, see **[training/guide.md](training/guide.md)**
-
-**Quick Training Example:**
-
-```python
-from training.train import MovieRecommenderTrainer
-
-# Initialize trainer
-trainer = MovieRecommenderTrainer(
-    output_dir='./models',
-    use_dimensionality_reduction=True,
-    n_components=500
-)
-
-# Train on your dataset
-df, neighbors = trainer.train(
-    'path/to/your/dataset.csv',
-    quality_threshold='medium',  # low/medium/high
-    max_movies=50000
-)
-```
-
-### Training Configurations
-
-Measured on the TMDB v11 dataset (1.49 million rows):
-
-| Configuration | Command | Movies | Time | Peak memory | Model files |
-|---------------|---------|--------|------|-------------|-------------|
-| **Small** | `-q high -m 10000` | 6,248 | 31 s | 2.5 GB | 3.8 MB |
-| **Default** | no flags (`-q medium`) | 26,326 | about 1 min | 2.5 GB | 16.1 MB |
-| **Large** | `-q low -m 100000` | 100,000 | 4.3 min | 3.9 GB | 61.5 MB |
-
-### Dataset Requirements
-
-Your CSV must have these columns:
-- `title` (required)
-- `genres` (required)
-- `keywords` (required)
-- `vote_average`, `vote_count` (recommended)
-- `release_date`, `imdb_id`, `poster_path` (optional)
-
-For detailed requirements and training guide, see **[training/guide.md](training/guide.md)**
-
----
-
-## 🔧 Using Different Models
-
-### Switching Models
-
-The system uses the `MODEL_DIR` environment variable to locate models:
-
-```bash
-# Method 1: Environment variable
-export MODEL_DIR=./models
-python manage.py runserver
-
-# Method 2: .env file
-echo "MODEL_DIR=./models" >> .env
-python manage.py runserver
-
-# Method 3: Modify settings.py
-# MODEL_DIR = os.path.join(BASE_DIR, 'models')
-```
-
-### Model Directory Structure
-
-Your model directory must contain:
-```
-models/
-├── movie_metadata.parquet    # Required
-├── title_to_idx.json         # Required
-├── config.json               # Required
-├── neighbors_idx.npy         # Required (default format)
-├── neighbors_scores.npy      # Required (default format)
-├── tfidf_vectorizer.pkl      # Optional (for retraining only)
-└── svd_model.pkl             # Optional (for retraining only)
-```
-
-A directory written with `--legacy-matrix` has `similarity_matrix.npz` or
-`similarity_matrix.npy` instead of the two `neighbors_*` files. The app still
-reads both layouts.
-
-### Verifying Model
-
-```bash
-# Check health endpoint
-curl http://localhost:8000/api/health/
-
-# Response shows model information
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "movies_loaded": 6248,
-  "model_dir": "demo_model"
-}
-```
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root:
-
-```env
-# Django Core
-SECRET_KEY=your-secret-key-here-minimum-50-characters
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-# Model Configuration
-MODEL_DIR=./models
-
-# Database (optional - defaults to SQLite)
-DATABASE_URL=postgresql://user:password@localhost:5432/dbname
-
-# CORS (if using separate frontend)
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-
-# Admin Panel
-ADMIN_ENABLED=False
-
-# Deployment
-RENDER_EXTERNAL_HOSTNAME=your-app.onrender.com
-```
-
-### Generating SECRET_KEY
-
-```bash
-python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-```
-
-### Database Configuration
-
-**Development (SQLite - default):**
-```python
-# Already configured in settings.py
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-```
-
-**Production (PostgreSQL - recommended):**
-```python
-# Install: pip install dj-database-url psycopg2-binary
-import dj_database_url
-
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600
-    )
-}
-```
-
----
-
-## 🔨 Development Guide
-
-### Project Structure
-
-```
-recommender/
-├── views.py          # Core logic
-├── urls.py           # URL patterns
-├── models.py         # Database models (currently empty)
-├── admin.py          # Admin configuration
-├── apps.py           # App configuration
-└── templates/        # HTML templates
-    └── recommender/
-        ├── index.html    # Home/search page
-        ├── result.html   # Recommendations page
-        └── error.html    # Error page
-```
-
-### Development Workflow
-
-```bash
-# 1. Activate virtual environment
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# 2. Run development server
-python manage.py runserver
-
-# 3. Access application
-# http://localhost:8000
-
-# 4. Make changes to code
-# Files auto-reload on save
-
-# 5. Run tests (when available)
-python manage.py test
-```
-
-### Django Management Commands
-
-```bash
-# Database
-python manage.py migrate                    # Apply migrations
-python manage.py makemigrations            # Create migrations
-python manage.py showmigrations            # Show migration status
-
-# Static files
-python manage.py collectstatic --noinput   # Collect static files
-
-# Development
-python manage.py runserver                 # Run dev server
-python manage.py runserver 8080           # Run on different port
-python manage.py shell                     # Django shell
-
-# Admin (if enabled)
-python manage.py createsuperuser           # Create admin user
-```
-
-### Viewing Logs
-
-Logs go to stdout, which is what container platforms collect. There is no log
-file to tail.
-
-```bash
-# Local development: logs appear in the terminal running the server
-python manage.py runserver
-
-# Render
-render logs --service movie-recommendation-system --tail
-
-# Heroku
-heroku logs --tail
-```
-
----
-
-## 🧪 Testing
-
-### Running Tests
-
-```bash
-# Run all tests
-python manage.py test
-
-# Run specific app tests
-python manage.py test recommender
-
-# Run with verbose output
-python manage.py test --verbosity=2
-
-# Keep test database
-python manage.py test --keepdb
-```
-
-### Writing Tests
-
-```python
-from django.test import TestCase, Client
-from django.urls import reverse
-
-class RecommenderTests(TestCase):
-    def setUp(self):
-        self.client = Client()
-    
-    def test_home_page(self):
-        """Test home page loads"""
-        response = self.client.get(reverse('recommender:main'))
-        self.assertEqual(response.status_code, 200)
-    
-    def test_search_api(self):
-        """Test search API"""
-        response = self.client.get('/api/search/?q=matrix')
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn('movies', data)
-```
-
----
-
-## 🚀 Deployment
-
-### Getting a model onto the server
-
-A deploy needs no model configuration: `demo_model/` is committed and found
-automatically. Use one of the options below only to ship a larger model than
-the demo.
-
-**A. Replace the committed model.** Train into `demo_model/` (git-ignored
-`models/` is for local experiments; `demo_model/` is tracked) and commit it.
-No `MODEL_DIR` needed:
-
-```bash
-pip install -r requirements-train.txt
-python training/train.py ./TMDB_movie_dataset_v11.csv -o demo_model -q high -m 10000
-git add demo_model && git commit -m "Add demo model"
-```
-
-**B. Fetch at build time.** Package a trained model and host it (a GitHub
-Release asset works well), then set `MODEL_URL`:
-
-```bash
-python training/train.py ./TMDB_movie_dataset_v11.csv -o models
-tar czf model.tar.gz -C models --exclude='*.pkl' .
-```
-
-The `-C models .` matters: archiving the directory itself nests everything one
-level too deep and the app will not find the artifacts. `render.yaml` unpacks
-the archive into `MODEL_DIR` during the build. This is build-time only; the
-app never downloads anything while serving.
-
-Nothing loaded at serving time is a pickle: the app reads parquet, JSON and
-numpy arrays (`np.load` and `load_npz` both refuse pickled data by default).
-The `.pkl` files a training run produces are for retraining, not serving.
-
-Without a model the site still starts and the home page explains what is
-missing, while `/api/health/` returns `503`. That is deliberate: a deployment
-fails loudly rather than silently serving nothing.
-
-### Deployment Checklist
-
-Before deploying to production:
-
-- [ ] Set `DEBUG=False`
-- [ ] Generate a secure `SECRET_KEY` (the app refuses to start without one when
-      `DEBUG=False`)
-- [ ] Configure `ALLOWED_HOSTS`
-- [ ] Make a model reachable (option A or B above)
-- [ ] Run `collectstatic` as part of the build, because the manifest static storage
-      needs it, and without it every page returns a 500
-- [ ] Confirm `/api/health/` reports `"status": "healthy"`
-- [ ] Set up monitoring against `/api/health/`
-
-### Deploy to Render
-
-**Step 1: Prepare Repository**
-```bash
-git add .
-git commit -m "Prepare for deployment"
-git push origin main
-```
-
-**Step 2: Create Render Account**
-- Go to [render.com](https://render.com)
-- Sign up (free tier available)
-
-**Step 3: Create New Web Service**
-- Click "New +" → "Web Service"
-- Connect your GitHub repository
-- Render auto-detects `render.yaml`
-
-**Step 4: Configure Environment Variables**
-```
-SECRET_KEY=<auto-generated>
-DEBUG=False
-ALLOWED_HOSTS=your-app.onrender.com
-MODEL_DIR=models
-MODEL_URL=<optional: URL of model.tar.gz, see above>
-```
-
-**Step 5: Deploy**
-- Click "Create Web Service"
-- Wait for build to complete
-- Access at `https://your-app.onrender.com`
-
-### Deploy to Heroku
-
-**Prerequisites:**
-```bash
-# Install Heroku CLI
-# https://devcenter.heroku.com/articles/heroku-cli
-
-# Login
-heroku login
-```
-
-**Deployment:**
-```bash
-# Create app
-heroku create your-app-name
-
-# Add PostgreSQL
-heroku addons:create heroku-postgresql:mini
-
-# Set environment variables
-heroku config:set SECRET_KEY="your-secret-key"
-heroku config:set DEBUG=False
-heroku config:set MODEL_DIR=./models
-
-# Deploy
-git push heroku main
-
-# Run migrations
-heroku run python manage.py migrate
-
-# Open app
-heroku open
-```
-
-### Deploy with Docker
-
-A `Dockerfile` and `.dockerignore` are in the repository root. The image bakes
-in whatever is in `MODEL_DIR` at build time, so train a model first.
-
-**Build and run:**
-```bash
-# 1. Train a model (skipped if you already have one)
-pip install -r requirements-train.txt
-python training/train.py ./TMDB_movie_dataset_v11.csv -o models
-
-# 2. Build
-docker build -t movie-recommender .
-
-# 3. Run
-export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(50))')"
-docker run --rm -p 8000:8000 -e SECRET_KEY="$SECRET_KEY" -e ALLOWED_HOSTS=localhost,127.0.0.1 -e SECURE_SSL_REDIRECT=False movie-recommender
-
-# 4. Access
-# http://localhost:8000
-```
-
-Three things that will bite you if changed:
-
-- **`SECRET_KEY` is required.** The image sets `DEBUG=False`, and the settings
-  module refuses to start with the development key in that mode.
-- **`SECURE_SSL_REDIRECT=False` when running without a TLS proxy.** With it on
-  and nothing setting `X-Forwarded-Proto`, every request is redirected to
-  `https://` and the browser loops. Behind a real proxy, leave it on.
-- **`collectstatic` runs during the build, before `DEBUG=False` is set.** That
-  ordering is deliberate: with `DEBUG` unset it defaults to `True`, so the
-  build does not need a `SECRET_KEY`. Reversing the two lines breaks the build.
-
-`.dockerignore` deliberately does *not* exclude `models/`. Docker does not read
-`.gitignore`, so `COPY . .` is what puts your locally trained model into the
-image. That is the whole Docker workflow: train, then build.
-
-### Deploy to AWS
-
-```bash
-# Install EB CLI
-pip install awsebcli
-
-# Initialize
-eb init -p python-3.12 movie-recommender
-
-# Create environment
-eb create movie-recommender-env
-
-# Deploy
-eb deploy
-
-# Open
-eb open
-```
-
----
-
-## 📡 API Reference
-
-### Endpoints
-
-#### 1. Home Page / Search
-
-**Endpoint:** `GET /`
-
-**Description:** Display search interface
-
-**Response:** HTML page
-
----
-
-#### 2. Submit Search
-
-**Endpoint:** `POST /`
-
-**Content-Type:** `application/x-www-form-urlencoded`
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| movie_name | string | Yes | Movie title to search |
-| csrfmiddlewaretoken | string | Yes | CSRF token |
-
-**Response:** HTML page with recommendations or error
-
----
-
-#### 3. Search Movies (Autocomplete)
-
-**Endpoint:** `GET /api/search/`
-
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| q | string | Yes | Search query (min 2 chars) |
-
-**Example Request:**
-```bash
-curl "http://localhost:8000/api/search/?q=matrix"
-```
-
-**Example Response:**
-```json
-{
-  "movies": [
-    "The Matrix",
-    "The Animatrix",
-    "The Matrix Reloaded",
-    "The Matrix Revolutions",
-    "The Matrix Resurrections"
-  ],
-  "count": 5
-}
-```
-
----
-
-#### 4. Health Check
-
-**Endpoint:** `GET /api/health/`
-
-**Description:** Check service health and model status
-
-**Example Request:**
-```bash
-curl "http://localhost:8000/api/health/"
-```
-
-**Example Response:**
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "movies_loaded": 6248,
-  "model_dir": "demo_model"
-}
-```
-
-While a model is still loading the response is
-`{"status": "starting", "model_loaded": false, "progress": 40}`.
-
-**Status Codes:**
-- `200 OK` - Healthy, or still starting (so platform health checks do not kill a slow first load)
-- `503 Service Unavailable` - No model found, or loading failed (`status: unhealthy` with a `reason`)
-
----
-
-## 💻 Command Reference
-
-### Virtual Environment
-
-```bash
-# Create
-python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Unix/macOS)
-source venv/bin/activate
-
-# Deactivate
-deactivate
-```
-
-### Django Commands
-
-```bash
-# Server
-python manage.py runserver              # Start dev server
-python manage.py runserver 8080        # Custom port
-
-# Database
-python manage.py migrate                # Apply migrations
-python manage.py makemigrations        # Create migrations
-python manage.py showmigrations        # Show status
-
-# Static files
-python manage.py collectstatic         # Collect static files
-
-# Shell
-python manage.py shell                 # Django shell
-
-# Testing
-python manage.py test                  # Run tests
-```
-
-### Git Commands
-
-```bash
-# Clone
-git clone <url>
-
-# Status
+```powershell
 git status
-
-# Stage changes
-git add .
-
-# Commit
-git commit -m "message"
-
-# Push
-git push origin main
-
-# Pull
-git pull origin main
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### Issue 1: Module Not Found
-
-**Problem:** `ModuleNotFoundError: No module named 'package'`
-
-**Solution:**
-```bash
-# Ensure virtual environment is activated
-source venv/bin/activate  # or venv\Scripts\activate
-
-# Reinstall dependencies
-pip install -r requirements.txt --upgrade
-```
-
----
-
-#### Issue 2: Model Not Found
-
-**Problem:** `FileNotFoundError: Model files not found`
-
-**Solution:**
-```bash
-# Check MODEL_DIR
-echo $MODEL_DIR
-
-# Verify files exist
-ls -la models/  # or dir models\ on Windows
-
-# Point at a model directory
-export MODEL_DIR=models
-
-# Or train a new model
-python training/train.py ./TMDB_movie_dataset_v11.csv -o models
-```
-
----
-
-#### Issue 3: Port Already in Use
-
-**Problem:** `Error: That port is already in use`
-
-**Solution:**
-```bash
-# Use different port
-python manage.py runserver 8080
-
-# Or kill process (Unix/macOS)
-lsof -ti:8000 | xargs kill -9
-
-# Windows
-netstat -ano | findstr :8000
-taskkill /PID <PID> /F
-```
-
----
-
-#### Issue 4: Static Files Not Loading
-
-**Problem:** CSS/images not displaying in production
-
-**Solution:**
-```bash
-# Collect static files
-python manage.py collectstatic --noinput
-
-# Verify settings
-# STATIC_ROOT should be set
-# WhiteNoise should be in MIDDLEWARE
-```
-
----
-
-#### Issue 5: Database Errors
-
-**Problem:** `OperationalError: no such table`
-
-**Solution:**
-```bash
-# Run migrations
+git pull
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 python manage.py migrate
+python manage.py runserver
+```
 
-# If still failing, reset database
-rm db.sqlite3
+Nếu `git status` cho thấy bạn có thay đổi cục bộ, hãy commit hoặc sao lưu chúng trước khi pull. Có thể bỏ qua cài lại requirements nếu `requirements.txt` không đổi; luôn chạy `migrate` sau khi cập nhật để áp dụng migration mới. Nếu pull có thay đổi migration, dữ liệu schema trong database cục bộ sẽ được cập nhật.
+
+### Dữ liệu và cấu hình trên máy mỗi người
+
+- `.venv/`, `.env` và `db.sqlite3` bị loại khỏi Git. Mỗi người tạo môi trường ảo và database riêng; tài khoản, yêu thích, đánh giá và session không được chia sẻ qua `git pull`.
+- Tài khoản quản trị cũng thuộc database cục bộ. Muốn vào trang admin, mỗi người tự tạo tài khoản bằng `python manage.py createsuperuser`.
+- Không có TMDB token thì dùng được mô hình offline. Muốn tải dữ liệu trực tuyến, mỗi người tự thiết lập token trong PowerShell trước khi chạy server; không commit token lên GitHub.
+- `.env.example` chỉ là tài liệu tham khảo cho biến môi trường; ứng dụng không tự đọc file `.env`.
+
+Nếu PowerShell chặn kích hoạt môi trường ảo, có thể cho phép script trong phiên hiện tại rồi kích hoạt lại:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+### Dùng TMDB API (tùy chọn)
+
+Tạo API Read Access Token trong phần cài đặt API của tài khoản TMDB. Đặt token vào biến môi trường **trước khi chạy server**:
+
+```powershell
+$env:TMDB_ACCESS_TOKEN = "YOUR_TMDB_READ_ACCESS_TOKEN"
+python manage.py runserver
+```
+
+Không đưa token thật vào mã nguồn, HTML/JavaScript, Git hoặc tài liệu được chia sẻ. Đổi token nếu token từng được ghi trực tiếp vào tài liệu hoặc công khai.
+
+Không có token thì ứng dụng vẫn chạy với mô hình mẫu. Trang `/movies/` dùng danh mục offline nếu mô hình có sẵn; các tính năng cần dữ liệu TMDB trực tuyến, đặc biệt gợi ý cá nhân hóa, cần token hợp lệ.
+
+> `.env.example` là danh sách biến cấu hình và mẫu tham khảo. Django settings hiện tại đọc trực tiếp biến môi trường của tiến trình; chỉ tạo file `.env` không tự nạp giá trị vào ứng dụng.
+
+### Tạo tài khoản quản trị
+
+Lệnh sau không bắt buộc để dùng các trang công khai; cần thực hiện nếu muốn vào Django Admin hoặc dashboard dành cho nhân viên:
+
+```powershell
+python manage.py createsuperuser
+```
+
+Sau đó mở `/admin/` để dùng Django Admin hoặc `/admin/dashboard/` để xem dashboard riêng của ứng dụng.
+
+## 4. Các trang và luồng sử dụng
+
+| Đường dẫn | Quyền truy cập | Chức năng |
+|---|---|---|
+| `/` | Công khai | GET chuyển hướng đến `/movies/`; POST vẫn hỗ trợ gửi yêu cầu gợi ý offline cũ. |
+| `/movies/` | Công khai | Duyệt phim, tìm theo tên, lọc thể loại/năm, phân trang. Có token thì lấy dữ liệu TMDB; không có token thì dùng dữ liệu mô hình offline. |
+| `/movies/<tmdb_id>/` | Công khai | Xem thông tin phim; người đã đăng nhập có thể lưu yêu thích và đánh giá. |
+| `/recommendation` | Công khai | Nhập phim để tìm các phim tương tự từ mô hình offline. GET mở biểu mẫu; POST tạo kết quả. |
+| `/accounts/signup/` | Công khai | Tạo tài khoản. |
+| `/accounts/login/` | Công khai | Đăng nhập. |
+| `/accounts/logout/` | Đã đăng nhập | Đăng xuất qua POST. |
+| `/favorites/` | Đã đăng nhập | Xem, mở chi tiết hoặc bỏ phim khỏi danh sách yêu thích. |
+| `/for-you/` | Đã đăng nhập | Gợi ý cá nhân hóa dựa trên yêu thích, đánh giá và tương tác. |
+| `/admin/` | Nhân viên | Django Admin để quản lý tài khoản và bản ghi `Movie`. |
+| `/admin/dashboard/` | Nhân viên | Thống kê cơ sở dữ liệu và trạng thái mô hình. |
+| `/evaluation/` | Nhân viên | Bảng đánh giá offline các thuật toán gợi ý. |
+
+Đánh giá phim hiện là một lần cho mỗi tài khoản/phim; không thể gửi đánh giá thứ hai cho cùng phim. Lịch sử tìm kiếm cũ còn trong cơ sở dữ liệu để tương thích nhưng không được cập nhật hoặc hiển thị như một tính năng tìm kiếm.
+
+## 5. Các API
+
+| Endpoint | Phương thức | Mô tả |
+|---|---|---|
+| `/api/search/?q=<từ-khóa>` | GET | Tìm tiêu đề trong mô hình offline để phục vụ autocomplete. Truy vấn ngắn hơn 2 ký tự trả danh sách rỗng. |
+| `/api/model-status/` | GET | Trả trạng thái tải mô hình: `loading`, `ready`, `missing` hoặc `error`. |
+| `/api/health/` | GET | Health/readiness check. Trả `healthy` khi mô hình sẵn sàng, `starting` trong lúc tải và HTTP 503 khi thiếu/lỗi mô hình. |
+
+Ví dụ trong PowerShell:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/api/search/?q=matrix"
+Invoke-RestMethod "http://127.0.0.1:8000/api/model-status/"
+Invoke-RestMethod "http://127.0.0.1:8000/api/health/"
+```
+
+## 6. Cách hệ thống gợi ý phim
+
+### 6.1 Gợi ý tương tự từ mô hình offline
+
+`demo_model/` đi kèm dự án để có thể dùng ngay mà không cần huấn luyện. Khi khởi động, ứng dụng tìm một thư mục mô hình hợp lệ và tải nó một lần trong background. Giao diện có thể hỏi `/api/model-status/` để biết quá trình tải.
+
+Luồng xử lý:
+
+1. Chuẩn hóa và tìm tên phim theo thứ tự khớp chính xác, tiền tố, chuỗi con rồi gần đúng.
+2. Tra chỉ số phim trong `title_to_idx.json`.
+3. Đọc hàng láng giềng tương ứng từ các mảng NumPy đã tính trước.
+4. Lọc phim nguồn, lấy số lượng kết quả theo `RECOMMENDATION_COUNT` và dựng thẻ kết quả.
+
+Phần serving không tính lại ma trận cosine cho từng yêu cầu. Mô hình top-K mặc định lưu các láng giềng gần nhất, giảm dung lượng so với ma trận đầy đủ.
+
+### 6.2 Gợi ý cá nhân hóa
+
+`/for-you/` xây dựng hồ sơ từ dữ liệu tài khoản:
+
+- Yêu thích là tín hiệu tích cực mạnh.
+- Đánh giá 4–5 sao góp phần tạo sở thích; phim đã đánh giá/yêu thích bị loại khỏi danh sách đề xuất.
+- Các lượt mở trang chi tiết gần đây là tín hiệu yếu hơn; chúng không chứng minh người dùng đã xem phim.
+- Ứng viên lấy từ phim tương tự, khám phá theo thể loại, phim phổ biến trên TMDB và phim được người dùng tương tự đánh giá cao.
+
+Xếp hạng nội dung kết hợp độ tương đồng văn bản, độ phù hợp thể loại và chất lượng phim TMDB. Khi có đủ bằng chứng collaborative filtering, điểm kết hợp dùng 65% nội dung và 35% collaborative filtering. Hai người dùng cần có tối thiểu hai phim chung để được xem là có đủ dữ liệu so sánh. Nếu chưa có sở thích, hệ thống dùng phim phổ biến làm phương án cold-start.
+
+Đây là hệ thống gợi ý kết hợp nội dung với user-based collaborative filtering; nó không phải mô hình neural network. Kết quả phụ thuộc vào dữ liệu tương tác sẵn có và khả năng truy cập TMDB.
+
+### 6.3 Đánh giá thuật toán
+
+`/evaluation/` và lệnh `evaluate_recommendations` chạy đánh giá leave-one-positive-out trên dữ liệu đánh giá trong SQLite. Content-Based và Hybrid trong báo cáo dùng metadata `Movie` đã lưu cục bộ; kết quả **không phải phép đo trực tiếp toàn bộ luồng gợi ý TMDB trực tuyến**. Khi dữ liệu không đủ, dashboard hiển thị N/A thay vì tạo số liệu giả.
+
+## 7. Dữ liệu và cấu hình
+
+### Cơ sở dữ liệu
+
+Mặc định Django dùng SQLite ở `db.sqlite3` cạnh `manage.py`. Có thể đặt `SQLITE_PATH` để chỉ định vị trí khác.
+
+Các model quan trọng trong `recommender/models.py`:
+
+- `Movie`: metadata phim được lưu vào SQLite, phục vụ Django Admin và đánh giá offline.
+- `FavoriteMovie`: phim yêu thích TMDB theo `tmdb_id`, đồng thời giữ các mục yêu thích cũ lưu theo tên.
+- `MovieRating`: điểm 1–5, duy nhất theo cặp người dùng/phim.
+- `MovieInteraction`: dấu vết nội bộ như xem chi tiết, yêu thích, bỏ yêu thích và đánh giá; được dùng cho gợi ý.
+- `SearchHistory`: model cũ còn trong schema nhưng không còn luồng giao diện/ghi lịch sử tìm kiếm.
+
+Sau khi cập nhật mã nguồn hoặc nhận migration mới, chạy:
+
+```powershell
 python manage.py migrate
 ```
 
----
+Sao lưu `db.sqlite3` trước khi nâng cấp hoặc di chuyển dữ liệu tài khoản. Không gửi database thật vào kho mã nguồn hoặc ZIP công khai.
 
-#### Issue 6: Memory Error During Training
+### Biến môi trường
 
-**Problem:** System crashes or `MemoryError` during training
+| Biến | Ý nghĩa |
+|---|---|
+| `SECRET_KEY` | Khóa Django. Bắt buộc phải đặt khóa riêng khi `DEBUG=False`. |
+| `DEBUG` | Mặc định bật trong môi trường phát triển; phải tắt khi triển khai thật. |
+| `ALLOWED_HOSTS` | Danh sách hostname được phép, phân cách bằng dấu phẩy. Cần cấu hình cho production. |
+| `CSRF_TRUSTED_ORIGINS` | Các origin tin cậy, gồm scheme như `https://example.com`. |
+| `SECURE_SSL_REDIRECT` | Điều khiển chuyển hướng HTTPS khi `DEBUG=False`; tắt nếu chạy HTTP cục bộ không có proxy TLS. |
+| `TMDB_ACCESS_TOKEN` | Bearer Read Access Token để gọi TMDB; tùy chọn khi chỉ dùng mô hình offline. |
+| `MODEL_DIR` | Thư mục mô hình ưu tiên. Đường dẫn tương đối tính từ thư mục dự án. |
+| `MODEL_URL` | Tùy chọn ở bước build trên Render để tải archive mô hình; ứng dụng không tải mô hình này khi phục vụ request. |
+| `RECOMMENDATION_COUNT` | Số kết quả của luồng gợi ý offline; mặc định `15`. |
+| `SQLITE_PATH` | Đường dẫn tùy chọn đến file SQLite. |
 
-**Solution:**
-```python
-# Reduce dataset size
-trainer.train(data_path, max_movies=50000)
+Ứng dụng ưu tiên mô hình ở `MODEL_DIR`, sau đó tìm các thư mục tương thích như `models/`, `demo_model/` và vị trí hỗ trợ ngược. Thư mục mô hình phải có `config.json`, `title_to_idx.json`, metadata Parquet và dữ liệu độ tương đồng hợp lệ.
 
-# Or reduce SVD components
-trainer = MovieRecommenderTrainer(n_components=300)
+## 8. Huấn luyện mô hình riêng
 
-# Or use higher quality threshold
-trainer.train(data_path, quality_threshold='high')
+Huấn luyện là tùy chọn. Cài thêm dependency:
+
+```powershell
+pip install -r requirements-train.txt
 ```
 
-See [training/guide.md - Troubleshooting](training/guide.md) for training-specific issues.
+Chuẩn bị CSV theo cấu trúc TMDB Movies Dataset, thường là `TMDB_movie_dataset_v11.csv`, rồi chạy:
 
----
-
-## ⚡ Best Practices
-
-### Performance
-
-1. **Use Production Server**
-   ```bash
-   # Don't use runserver in production
-   gunicorn movie_recommendation.wsgi:application
-   ```
-
-2. **Enable Caching**
-   ```python
-   # Use Redis for production
-   CACHES = {
-       'default': {
-           'BACKEND': 'django_redis.cache.RedisCache',
-           'LOCATION': 'redis://127.0.0.1:6379/1',
-       }
-   }
-   ```
-
-3. **Optimize Database**
-   - Use PostgreSQL in production
-   - Add database indexes
-   - Use connection pooling
-
-4. **Enable Compression**
-   - Enable gzip compression
-   - Use CDN for static files
-   - Optimize model files
-
-### Security
-
-1. **Environment Variables**
-   - Never commit secrets
-   - Use `.env` files
-   - Rotate keys regularly
-
-2. **Dependencies**
-   ```bash
-   # Check for outdated packages
-   pip list --outdated
-   
-   # Update dependencies
-   pip install --upgrade package_name
-   ```
-
-3. **Security Headers**
-   ```python
-   # Already in settings.py for production
-   SECURE_SSL_REDIRECT = True
-   SESSION_COOKIE_SECURE = True
-   CSRF_COOKIE_SECURE = True
-   ```
-
-### Development
-
-1. **Code Quality**
-   ```bash
-   # Use linting
-   pip install flake8 black
-   
-   # Check code
-   flake8 recommender/
-   
-   # Format code
-   black recommender/
-   ```
-
-2. **Version Control**
-   - Commit frequently
-   - Write descriptive messages
-   - Use feature branches
-   - Review before merging
-
-3. **Documentation**
-   - Add docstrings to functions
-   - Comment complex logic
-   - Update README when needed
-   - Keep documentation current
-
----
-
-## ❓ FAQ
-
-### General
-
-**Q: Do I need to train a model to use the system?**  
-A: No. A 6,248-movie demo model is committed in `demo_model/` and is picked up automatically, so a fresh clone works immediately. Train your own only if you want a larger catalogue or a different dataset (see Model Training).
-
-**Q: What's the difference between `models/` and `static/`?**  
-A: `static/` holds web assets such as the icon. `demo_model/` holds the committed demo model and is found automatically. `models/` is git-ignored and is where your own trained models go. Point `MODEL_DIR` at it, or at any directory with the same layout.
-
-**Q: How do I switch between models?**  
-A: Set the `MODEL_DIR` environment variable:
-```bash
-export MODEL_DIR=models          # relative to the project root
-export MODEL_DIR=/srv/models     # or an absolute path
+```powershell
+python training\train.py .\TMDB_movie_dataset_v11.csv -o .\models
 ```
 
-### Training
+Các tham số hữu ích:
 
-**Q: How long does training take?**  
-A: Depends on dataset size:
-- 10K movies: ~2 minutes
-- 100K movies: ~15 minutes
-- 1M+ movies: ~60 minutes
+```powershell
+python training\train.py --help
+python training\train.py .\TMDB_movie_dataset_v11.csv -o .\models -q high -m 10000
+python training\train.py .\TMDB_movie_dataset_v11.csv -o .\models -q medium -m 50000 -k 50 --components 500
+```
 
-**Q: How much memory do I need for training?**  
-A: 
-- 10K movies: 500MB RAM
-- 100K movies: 2GB RAM
-- 1M+ movies: 6-8GB RAM
+- Chất lượng `low`, `medium`, `high` tương ứng ngưỡng tối thiểu 5, 50, 500 lượt vote.
+- Mặc định giới hạn 50.000 phim, lưu 50 láng giềng mỗi phim, dùng SVD 500 chiều và xử lý theo khối 1.024 hàng.
+- `--no-svd` bỏ SVD; `--legacy-matrix` tạo ma trận similarity đầy đủ, tốn bộ nhớ lớn hơn đáng kể.
+- Huấn luyện cần `requirements-train.txt`; chạy website chỉ cần `requirements.txt`.
 
-For detailed training FAQ, see [training/guide.md - FAQ](training/guide.md)
+Các file phục vụ inference gồm `movie_metadata.parquet`, `title_to_idx.json`, `config.json`, `neighbors_idx.npy` và `neighbors_scores.npy` (hoặc định dạng ma trận legacy). File `.pkl` được tạo trong quá trình train chỉ phục vụ retraining; không cần để chạy website và chỉ nên mở pickle từ nguồn đáng tin.
 
-### Deployment
+Sau khi train vào `models/`, có thể chạy với:
 
-**Q: Can I deploy for free?**  
-A: Yes! Render and Heroku offer free tiers suitable for this project.
+```powershell
+$env:MODEL_DIR = "models"
+python manage.py runserver
+```
 
-**Q: Do I need a database for deployment?**  
-A: SQLite works for development. Use PostgreSQL for production (most platforms provide it).
+## 9. Cấu trúc mã nguồn
 
-**Q: How do I configure HTTPS?**  
-A: Most cloud platforms (Render, Heroku) provide HTTPS automatically.
+```text
+movie-recommendation-system/
+├── movie_recommendation/       # Settings, URL gốc, ASGI/WSGI
+├── recommender/
+│   ├── views.py                # Mô hình offline, trang gợi ý và API trạng thái
+│   ├── tmdb_views.py           # Duyệt và chi tiết phim
+│   ├── tmdb_service.py         # HTTP client/cache TMDB
+│   ├── account_views.py        # Đăng ký, yêu thích, đánh giá
+│   ├── recommendation_engine.py# Gợi ý cá nhân hóa
+│   ├── collaborative_filtering.py
+│   ├── evaluation.py           # Đánh giá offline
+│   ├── models.py               # Schema dữ liệu Django
+│   ├── migrations/             # Lịch sử schema
+│   ├── management/commands/    # Lệnh quản trị, gồm evaluate_recommendations
+│   ├── templates/recommender/  # Giao diện HTML
+│   └── tests*.py               # Kiểm thử web, gợi ý, đánh giá
+├── training/
+│   ├── train.py                # Pipeline huấn luyện
+│   ├── infer.py                # Dùng model độc lập ngoài Django
+│   └── guide.md                # Tùy chọn huấn luyện nâng cao
+├── demo_model/                 # Mô hình mẫu đi kèm
+├── static/                     # Tài nguyên tĩnh
+├── requirements.txt            # Dependency phục vụ web
+├── requirements-train.txt      # Dependency huấn luyện bổ sung
+├── .env.example                # Danh sách biến môi trường tham khảo
+├── Dockerfile, render.yaml     # Cấu hình triển khai
+└── manage.py                   # Django management entry point
+```
 
-### Development
+Giao diện dùng template Django với CSS/JavaScript đặt trong template; không cần frontend build tool riêng.
 
-**Q: Can I modify the UI?**  
-A: Yes! Edit the templates in `recommender/templates/recommender/`. All CSS is inline for easy modification.
+## 10. Kiểm thử và kiểm tra mã
 
-**Q: How do I add new features?**  
-A: 
-1. Create a feature branch
-2. Make changes in `recommender/views.py` or templates
-3. Test locally
-4. Update documentation
-5. Submit pull request
+```powershell
+python manage.py check
+python manage.py test
+```
 
----
+Chạy từng nhóm:
 
-## 📚 Additional Resources
+```powershell
+python manage.py test recommender
+python manage.py test recommender.tests_recommendation
+python manage.py test recommender.tests_evaluation
+python manage.py test training
+```
 
-### Documentation
-- [README.md](README.md) - Quick start and overview
-- [training/guide.md](training/guide.md) - Model training guide
-- [CHANGELOG.md](CHANGELOG.md) - Version history
+Nếu đã cài Ruff:
 
-### External Resources
-- [Django Documentation](https://docs.djangoproject.com/)
-- [scikit-learn Documentation](https://scikit-learn.org/)
-- [pandas Documentation](https://pandas.pydata.org/)
+```powershell
+ruff check .
+```
 
-### Community
-- [GitHub Issues](https://github.com/inboxpraveen/Movie-Recommendation-System/issues) - Bug reports and feature requests
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
-- [SECURITY.md](SECURITY.md) - How to report a vulnerability
+Các bài kiểm thử dùng dữ liệu/mocks cục bộ; chúng không yêu cầu gọi TMDB thật. Khi thay đổi API TMDB hoặc hành vi gợi ý, ưu tiên mock phản hồi để kết quả test ổn định.
 
----
+## 11. Triển khai
 
-<div align="center">
+Không dùng `python manage.py runserver` làm web server production. Dự án có cấu hình Render (`render.yaml`), Docker (`Dockerfile`) và Gunicorn (`Procfile`).
 
-**Need more help?** Check [training/guide.md](training/guide.md) for training help or open an issue on GitHub.
+Trước khi public:
 
-[⬆ Back to Top](#-table-of-contents)
+1. Đặt `DEBUG=False`, `SECRET_KEY` riêng và `ALLOWED_HOSTS` đúng.
+2. Cấu hình HTTPS/proxy, CSRF trusted origins và biến TMDB nếu cần dữ liệu trực tuyến.
+3. Bảo đảm thư mục mô hình tồn tại hoặc dùng `demo_model/`.
+4. Chạy migrations và `collectstatic` theo quy trình build/release.
+5. Dùng database bền vững và sao lưu; SQLite phù hợp phát triển, cần đánh giá giải pháp database production theo môi trường triển khai.
+6. Kiểm tra `/api/health/` sau khi deploy.
 
-</div>
+Lệnh Docker cơ bản từ thư mục gốc:
+
+```powershell
+docker build -t cinerec .
+$secret = python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+docker run --rm -p 8000:8000 `
+  -e "SECRET_KEY=$secret" `
+  -e "ALLOWED_HOSTS=localhost,127.0.0.1" `
+  -e "SECURE_SSL_REDIRECT=False" `
+  cinerec
+```
+
+Khi chạy container cục bộ qua HTTP, `SECURE_SSL_REDIRECT=False` tránh chuyển hướng lặp sang HTTPS. Với production sau proxy TLS, cấu hình theo hướng dẫn của nền tảng thay vì tắt bảo vệ HTTPS một cách mặc định.
+
+Ứng dụng dùng một Gunicorn worker với nhiều thread trong cấu hình mẫu để tránh nạp nhiều bản mô hình vào RAM. Điều chỉnh tài nguyên và worker theo kích thước mô hình, sau khi đo trên môi trường triển khai.
+
+## 12. Xử lý sự cố thường gặp
+
+| Hiện tượng | Cách kiểm tra |
+|---|---|
+| `ModuleNotFoundError: django` | Kích hoạt đúng `.venv`, sau đó chạy `pip install -r requirements.txt`. |
+| Ứng dụng báo thiếu mô hình | Kiểm tra `demo_model/` hoặc đặt `MODEL_DIR` tới thư mục có đủ artifacts; kiểm tra `/api/model-status/`. |
+| Trang TMDB không tải dữ liệu | Kiểm tra `TMDB_ACCESS_TOKEN`, quyền API và kết nối Internet; lỗi HTTP được hiển thị bằng thông báo an toàn. |
+| Trang cá nhân hóa báo lỗi API | Luồng này cần token TMDB hợp lệ và kết nối được API; kiểm tra log server, không gửi token vào log/chat. |
+| Trang admin chuyển về đăng nhập hoặc 403 | Đăng nhập tài khoản `is_staff=True`; tạo tài khoản quản trị bằng `createsuperuser`. |
+| `no such table` | Chạy `python manage.py migrate` trong đúng thư mục/môi trường. |
+| Cổng 8000 đã được sử dụng | Chạy `python manage.py runserver 8001`. |
+| Static file lỗi trên production | Chạy `python manage.py collectstatic --noinput` trong build và kiểm tra cấu hình WhiteNoise. |
+| Lỗi khi train trên Windows | Cài dependency từ `requirements-train.txt`; nếu SciPy gặp lỗi DLL do môi trường, thử môi trường Conda như hướng dẫn đóng góp. |
+
+## 13. Quyền riêng tư, bảo mật và ghi nhận nguồn
+
+- Không commit `SECRET_KEY`, TMDB token, database tài khoản hoặc `.env` có dữ liệu thật.
+- Token TMDB được gửi từ server tới TMDB; không đưa token vào trình duyệt.
+- Chỉ dùng artifacts mô hình từ nguồn đáng tin; ứng dụng serving không cần pickle.
+- Dữ liệu phim/poster được lấy từ TMDB. Khi phân phối hoặc công bố sản phẩm, tuân thủ điều khoản TMDB và yêu cầu nhận diện/attribution hiện hành.
+- Báo cáo lỗ hổng bảo mật riêng tư theo hướng dẫn trong [SECURITY.md](SECURITY.md).
+
+## 14. Tài liệu liên quan
+
+- [README.md](README.md): giới thiệu ngắn và thông tin dự án.
+- [training/guide.md](training/guide.md): chi tiết dataset, thuật toán train và tùy chỉnh mô hình.
+- [CONTRIBUTING.md](CONTRIBUTING.md): quy trình phát triển và đóng góp.
+- [HUONG_DAN_TMDB.md](HUONG_DAN_TMDB.md): hướng dẫn cấu hình TMDB.
+- [HUONG_DAN_PHASE2.md](HUONG_DAN_PHASE2.md), [HUONG_DAN_PHASE3.md](HUONG_DAN_PHASE3.md), [HUONG_DAN_PHASE4.md](HUONG_DAN_PHASE4.md), [HUONG_DAN_PHASE5.md](HUONG_DAN_PHASE5.md): ghi chú lịch sử các giai đoạn.
+- [UPGRADE_GUIDE_VI.md](UPGRADE_GUIDE_VI.md): lưu ý nâng cấp và dữ liệu cũ.
+- [CHANGELOG.md](CHANGELOG.md): thay đổi theo phiên bản.

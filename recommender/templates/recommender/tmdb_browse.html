@@ -8,18 +8,316 @@
   </a>
 </header>
 
-<form method="get" class="form">
-  <input name="q" value="{{ query }}" maxlength="120" placeholder="Nhập tên phim..." aria-label="Tên phim">
-  <select name="genre" aria-label="Thể loại">
-    <option value="">Mọi thể loại</option>
-    {% for g in genres %}
-      <option value="{{ g.id }}" {% if selected_genre == g.id|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
-    {% endfor %}
-  </select>
-  <input name="year" value="{{ year }}" type="number" min="1900" max="2100" placeholder="Năm" aria-label="Năm">
+<form method="get" class="browse-filters">
+  <div class="recommend-input-wrap browse-search-wrap">
+    <input id="browseMovieQuery" name="q" value="{{ query }}" maxlength="120" placeholder="Nhập tên phim..."
+           aria-label="Tên phim" autocomplete="off" role="combobox" aria-autocomplete="list"
+           aria-expanded="false" aria-controls="browseMovieSuggestions">
+    <ul class="movie-suggestions-list" id="browseMovieSuggestions" role="listbox"
+        aria-label="Gợi ý tên phim"></ul>
+  </div>
+  <div class="browse-genre-wrap">
+    <select name="genre" class="browse-genre-native" aria-label="Thể loại">
+      <option value="">Mọi thể loại</option>
+      {% for g in genres %}
+        <option value="{{ g.id }}" {% if selected_genre == g.id|stringformat:'s' %}selected{% endif %}>{{ g.name }}</option>
+      {% endfor %}
+    </select>
+    <div class="browse-genre-control">
+      <button class="browse-genre-toggle" type="button" aria-label="Thể loại"
+              aria-haspopup="listbox" aria-expanded="false" aria-controls="browseGenreOptions">
+        <span class="browse-genre-label">Mọi thể loại</span>
+        <svg class="browse-genre-chevron" aria-hidden="true" viewBox="0 0 20 20" fill="none">
+          <path d="m5 7.5 5 5 5-5" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="browse-genre-menu" id="browseGenreOptions" role="listbox"
+           aria-label="Chọn thể loại" hidden></div>
+    </div>
+  </div>
+  <div class="browse-year-wrap">
+    <input name="year" value="{{ year }}" type="text" inputmode="numeric" pattern="[0-9]{4}"
+           maxlength="4" placeholder="Năm" aria-label="Năm" autocomplete="off"
+           aria-describedby="browseYearError"
+           aria-invalid="false" title="Nhập năm gồm đúng 4 chữ số">
+    <span class="browse-year-error" id="browseYearError" role="alert" aria-live="polite"></span>
+  </div>
   <button type="submit">Tìm phim</button>
   <a class="clear-filter" href="{% url 'recommender:tmdb_browse' %}">Xóa lọc</a>
 </form>
+<p class="search-status browse-search-status muted" id="browseSearchStatus" aria-live="polite" hidden></p>
+
+<script>
+  (function () {
+    var input = document.getElementById('browseMovieQuery');
+    var list = document.getElementById('browseMovieSuggestions');
+    var status = document.getElementById('browseSearchStatus');
+    var inputWrap = document.querySelector('.browse-search-wrap');
+    var timer;
+    var controller;
+    var titles = [];
+    var activeIndex = -1;
+
+    function closeList() {
+      list.replaceChildren();
+      list.classList.remove('is-open');
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+      titles = [];
+      activeIndex = -1;
+    }
+
+    function renderList(matches) {
+      list.replaceChildren();
+      titles = matches;
+      activeIndex = -1;
+
+      if (!matches.length) {
+        var empty = document.createElement('li');
+        empty.className = 'movie-suggestion-empty';
+        empty.textContent = 'Không tìm thấy phim.';
+        list.appendChild(empty);
+      } else {
+        matches.forEach(function (title, index) {
+          var option = document.createElement('li');
+          option.className = 'movie-suggestion-option';
+          option.id = 'browse-movie-suggestion-' + index;
+          option.setAttribute('role', 'option');
+          option.setAttribute('aria-selected', 'false');
+          option.textContent = title;
+          option.addEventListener('pointerdown', function (event) {
+            event.preventDefault();
+            selectTitle(index);
+          });
+          list.appendChild(option);
+        });
+      }
+
+      list.classList.add('is-open');
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function selectTitle(index) {
+      if (titles[index] === undefined) { return; }
+      input.value = titles[index];
+      closeList();
+      input.focus();
+    }
+
+    function setActiveIndex(index) {
+      var options = list.querySelectorAll('.movie-suggestion-option');
+      if (!options.length) { return; }
+      activeIndex = (index % options.length + options.length) % options.length;
+      options.forEach(function (option, optionIndex) {
+        var isActive = optionIndex === activeIndex;
+        option.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        if (isActive) {
+          input.setAttribute('aria-activedescendant', option.id);
+          option.scrollIntoView({ block: 'nearest' });
+        }
+      });
+    }
+
+    input.addEventListener('input', function () {
+      window.clearTimeout(timer);
+      if (controller) { controller.abort(); }
+      var query = input.value.trim();
+      closeList();
+      status.textContent = '';
+      status.hidden = true;
+      if (query.length < 2) { return; }
+
+      timer = window.setTimeout(function () {
+        controller = new AbortController();
+        fetch('{% url "recommender:search_movies" %}?q=' + encodeURIComponent(query), {
+          signal: controller.signal,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (response) {
+          if (!response.ok) { throw new Error('Search request failed'); }
+          return response.json();
+        }).then(function (data) {
+          if (query !== input.value.trim()) { return; }
+          if (data.loading) {
+            status.textContent = 'Đang tải danh mục phim, vui lòng thử lại sau giây lát.';
+            status.hidden = false;
+            closeList();
+            return;
+          }
+          renderList(data.movies || []);
+        }).catch(function (error) {
+          if (error.name !== 'AbortError') {
+            status.textContent = 'Chưa thể tải gợi ý tên phim. Bạn vẫn có thể nhập tên và tiếp tục.';
+            status.hidden = false;
+          }
+        });
+      }, 180);
+    });
+
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown' && list.classList.contains('is-open')) {
+        event.preventDefault();
+        setActiveIndex(activeIndex + 1);
+      } else if (event.key === 'ArrowUp' && list.classList.contains('is-open')) {
+        event.preventDefault();
+        setActiveIndex(activeIndex - 1);
+      } else if (event.key === 'Enter' && activeIndex >= 0) {
+        event.preventDefault();
+        selectTitle(activeIndex);
+      } else if (event.key === 'Escape') {
+        closeList();
+      }
+    });
+
+    input.addEventListener('blur', function () {
+      window.setTimeout(closeList, 120);
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!inputWrap.contains(event.target)) { closeList(); }
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    var wrapper = document.querySelector('.browse-genre-wrap');
+    var select = wrapper.querySelector('.browse-genre-native');
+    var control = wrapper.querySelector('.browse-genre-control');
+    var toggle = wrapper.querySelector('.browse-genre-toggle');
+    var label = wrapper.querySelector('.browse-genre-label');
+    var menu = wrapper.querySelector('.browse-genre-menu');
+    var yearInput = document.querySelector('.browse-filters input[name="year"]');
+    var yearError = document.getElementById('browseYearError');
+    var filters = document.querySelector('.browse-filters');
+    var options = [];
+
+    function updateYearValidity(showMessage) {
+      var value = yearInput.value;
+      var message = '';
+      if (value && !/^[0-9]{4}$/.test(value)) {
+        message = 'Nhập năm đủ 4 chữ số.';
+      } else if (value) {
+        var year = Number(value);
+        var maxYear = new Date().getFullYear() + 3;
+        if (year < 1900 || year > maxYear) {
+          message = 'Năm phải từ 1900 đến ' + maxYear + '.';
+        }
+      }
+
+      yearInput.setCustomValidity(message);
+      var showError = Boolean(showMessage && message);
+      yearInput.setAttribute('aria-invalid', showError ? 'true' : 'false');
+      yearError.textContent = showError ? message : '';
+      yearError.classList.toggle('is-visible', showError);
+      return !message;
+    }
+
+    function syncSelection() {
+      label.textContent = select.options[select.selectedIndex].text;
+      options.forEach(function (option, index) {
+        option.setAttribute('aria-selected',
+          select.options[index].value === select.value ? 'true' : 'false');
+      });
+    }
+
+    function closeMenu(returnFocus) {
+      menu.hidden = true;
+      menu.classList.remove('opens-up');
+      toggle.setAttribute('aria-expanded', 'false');
+      if (returnFocus) { toggle.focus(); }
+    }
+
+    function openMenu(focusSelection) {
+      menu.hidden = false;
+      menu.style.maxHeight = 'none';
+      var bounds = toggle.getBoundingClientRect();
+      var available = Math.max(0, window.innerHeight - bounds.bottom - 12);
+      menu.classList.remove('opens-up');
+      menu.style.maxHeight = Math.min(320, available) + 'px';
+      toggle.setAttribute('aria-expanded', 'true');
+
+      if (focusSelection) {
+        var selected = options.find(function (option) {
+          return option.getAttribute('aria-selected') === 'true';
+        });
+        (selected || options[0]).focus();
+      }
+    }
+
+    select.options.length && Array.prototype.forEach.call(select.options, function (item) {
+      var option = document.createElement('button');
+      option.className = 'browse-genre-option';
+      option.type = 'button';
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', 'false');
+      option.textContent = item.text;
+      option.addEventListener('click', function () {
+        select.value = item.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        closeMenu(true);
+      });
+      option.addEventListener('keydown', function (event) {
+        var index = options.indexOf(option);
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          var direction = event.key === 'ArrowDown' ? 1 : -1;
+          options[(index + direction + options.length) % options.length].focus();
+        } else if (event.key === 'Home' || event.key === 'End') {
+          event.preventDefault();
+          options[event.key === 'Home' ? 0 : options.length - 1].focus();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          closeMenu(true);
+        }
+      });
+      menu.appendChild(option);
+      options.push(option);
+    });
+
+    toggle.addEventListener('click', function () {
+      if (menu.hidden) { openMenu(false); }
+      else { closeMenu(false); }
+    });
+    toggle.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        openMenu(true);
+      } else if (event.key === 'Escape') {
+        closeMenu(false);
+      }
+    });
+    select.addEventListener('change', syncSelection);
+    yearInput.addEventListener('input', function () {
+      yearInput.value = yearInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      updateYearValidity(yearError.classList.contains('is-visible'));
+    });
+    yearInput.addEventListener('blur', function () {
+      updateYearValidity(Boolean(yearInput.value));
+    });
+    yearInput.addEventListener('invalid', function (event) {
+      event.preventDefault();
+      updateYearValidity(true);
+    });
+    filters.addEventListener('submit', function (event) {
+      if (!updateYearValidity(true)) {
+        event.preventDefault();
+        yearInput.focus();
+      }
+    });
+    wrapper.addEventListener('focusout', function (event) {
+      if (!wrapper.contains(event.relatedTarget)) { closeMenu(false); }
+    });
+    document.addEventListener('click', function (event) {
+      if (!wrapper.contains(event.target)) { closeMenu(false); }
+    });
+
+    syncSelection();
+    select.setAttribute('aria-hidden', 'true');
+    select.tabIndex = -1;
+    document.documentElement.classList.add('js');
+  })();
+</script>
 
 {% if query and selected_genre or query and year %}
   <p class="muted">Khi nhập tên phim, bộ lọc thể loại/năm sẽ không áp dụng.</p>
