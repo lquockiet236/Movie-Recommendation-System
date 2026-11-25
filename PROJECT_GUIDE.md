@@ -354,7 +354,5 @@ Khi chạy container cục bộ qua HTTP, `SECURE_SSL_REDIRECT=False` tránh chu
 - [README.md](README.md): giới thiệu ngắn và thông tin dự án.
 - [training/guide.md](training/guide.md): chi tiết dataset, thuật toán train và tùy chỉnh mô hình.
 - [CONTRIBUTING.md](CONTRIBUTING.md): quy trình phát triển và đóng góp.
-- [HUONG_DAN_TMDB.md](HUONG_DAN_TMDB.md): hướng dẫn cấu hình TMDB.
-- [HUONG_DAN_PHASE2.md](HUONG_DAN_PHASE2.md), [HUONG_DAN_PHASE3.md](HUONG_DAN_PHASE3.md), [HUONG_DAN_PHASE4.md](HUONG_DAN_PHASE4.md), [HUONG_DAN_PHASE5.md](HUONG_DAN_PHASE5.md): ghi chú lịch sử các giai đoạn.
 - [UPGRADE_GUIDE_VI.md](UPGRADE_GUIDE_VI.md): lưu ý nâng cấp và dữ liệu cũ.
 - [CHANGELOG.md](CHANGELOG.md): thay đổi theo phiên bản.
