@@ -1,387 +1,169 @@
-<div align="center">
+# Hệ thống gợi ý phim
 
-<img src="./assets/images-for-readme/logo.svg" alt="Movie Recommendation System logo" width="120">
+Ứng dụng web Django giúp khám phá phim và nhận gợi ý dựa trên nội dung phim. Dự án có sẵn model mẫu để chạy offline; có thể cấu hình TMDB để duyệt dữ liệu trực tuyến và sử dụng các chức năng cá nhân hóa.
 
-# Movie Recommendation System
+## Chức năng
 
-**A content-based movie recommender you can run, train and deploy.**<br>
-TF-IDF, SVD and top-K cosine neighbours behind a Django app, with a training pipeline that scales from a few thousand films to the full TMDB catalogue.
+- Tìm phim tương tự theo tên phim, với autocomplete và xử lý tên gần đúng.
+- Duyệt danh sách phim, tìm kiếm và lọc theo thể loại hoặc năm.
+- Xem thông tin chi tiết, lưu phim yêu thích và đánh giá phim khi đăng nhập.
+- Trang gợi ý dành riêng cho người dùng, dựa trên phim đã yêu thích, đánh giá và tương tác.
+- Model mẫu gồm **6.248 phim**, lưu các phim lân cận đã tính trước để suy luận nhanh.
+- Có thể huấn luyện model mới từ bộ dữ liệu dạng TMDB.
 
-[![CI](https://github.com/inboxpraveen/Movie-Recommendation-System/actions/workflows/ci.yml/badge.svg)](https://github.com/inboxpraveen/Movie-Recommendation-System/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![Django](https://img.shields.io/badge/Django-6.0-green.svg)](https://djangoproject.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/Sponsor-inboxpraveen-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/inboxpraveen)
+## Công nghệ
 
-</div>
+- Python 3.12+
+- Django 6, Gunicorn và WhiteNoise
+- NumPy, pandas, PyArrow và SciPy cho tải/suy luận model
+- SQLite cho tài khoản, phiên đăng nhập, yêu thích, đánh giá và lịch sử tương tác
+- TMDB API (tùy chọn; cần `TMDB_ACCESS_TOKEN` để dùng dữ liệu trực tuyến)
 
-![Movie Recommendation System](./assets/images-for-readme/Header.png)
+## Chạy local trên Windows
 
-## Contents
+Mở PowerShell tại thư mục gốc của project:
 
-- [What it is](#what-it-is)
-- [Demo](#demo)
-- [How it works](#how-it-works)
-- [Quick start](#quick-start)
-- [Use it your way](#use-it-your-way)
-- [Model training](#model-training)
-- [API reference](#api-reference)
-- [Configuration](#configuration)
-- [Deployment](#deployment)
-- [Performance](#performance)
-- [Project structure](#project-structure)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [Sponsor](#sponsor)
-- [Data and attribution](#data-and-attribution)
-- [License](#license)
-
-## What it is
-
-Type a film you like, get fifteen that are close to it. Similarity comes from what the films are made of: genres, keywords, studios, countries, plot overview and tagline. There is no user history to collect, so it works from the first query.
-
-The repository holds two things that work together:
-
-- **A training pipeline** (`training/train.py`) that turns any TMDB-shaped CSV into a small, fast model directory.
-- **A Django app** that serves that model: search with autocomplete, ranked results, and a JSON API.
-
-A 6,248-movie demo model is committed in `demo_model/`, so a fresh clone or a fresh deploy works with no setup.
-
-**Why it is easy to run in production**
-
-- **Small models.** The trainer stores the 50 nearest neighbours per film, never an N x N matrix. At 50,000 films that is about 20 MB instead of 10 GB.
-- **No code execution when loading.** The app reads parquet, JSON and NumPy arrays. Nothing loaded at serving time is a pickle.
-- **Low memory.** Neighbour arrays are memory-mapped, so each request reads one row.
-- **Safe to deploy.** The app refuses to start with the development secret key when `DEBUG=False`, and `/api/health/` reports `starting` while a large model loads so platform health checks do not kill the deploy.
-- **Tested.** A test suite covers the views, the model loader and the training pipeline.
-
-## Demo
-
-![Application demo](./assets/demo-video/Application-Demo.gif)
-
-| Search | Results |
-|--------|---------|
-| ![Home page](./assets/images-for-readme/Homepage.png) | ![Results page](./assets/images-for-readme/Results.png) |
-
-## How it works
-
-![Architecture](./assets/images-for-readme/Architecture.png)
-
-**Training (offline)**
-
-1. Load a TMDB-shaped CSV.
-2. Keep released films above a vote threshold (`low` is 5 votes, `medium` is 50, `high` is 500), drop duplicate titles and rows with no usable text.
-3. Build one text field per film: genres (counted twice), stemmed keywords, the lead studio (counted twice) plus up to three studios, up to two countries, the first 50 words of the overview, and the tagline.
-4. Fit TF-IDF over one and two word grams, then reduce with truncated SVD to 500 dimensions.
-5. Compute cosine similarity in 1,024-row chunks and keep the top 50 neighbours per film.
-
-**Serving (online)**
-
-1. The model loads once per process in a background thread; the UI polls `/api/model-status/` for progress.
-2. A search is resolved to a title by exact match, then prefix, then substring, then fuzzy match.
-3. The film's row of precomputed neighbours is read from the memory-mapped arrays and rendered as cards.
-
-## Quick start
-
-Requires Python 3.11 or newer.
-
-```bash
-git clone https://github.com/inboxpraveen/Movie-Recommendation-System.git
-cd Movie-Recommendation-System
-
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
 
-Open <http://localhost:8000>. Search works immediately because `demo_model/` is found automatically.
+Mở <http://127.0.0.1:8000/>.
 
-Prefer conda?
+Không có `TMDB_ACCESS_TOKEN`, ứng dụng vẫn chạy với model mẫu và dữ liệu offline. Để bật TMDB, đặt token trong cùng cửa sổ PowerShell trước khi khởi động server:
+
+```powershell
+$env:TMDB_ACCESS_TOKEN = "TMDB_READ_ACCESS_TOKEN"
+python manage.py runserver
+```
+
+Không đưa token hoặc `SECRET_KEY` thật vào Git. `.env.example` liệt kê các biến tham khảo; Django trong project đọc biến từ môi trường hệ điều hành, không tự nạp file `.env`.
+
+### Linux/macOS
 
 ```bash
-conda create -n movierec python=3.12 numpy scipy pandas pyarrow
-conda activate movierec
-pip install -r requirements.txt
-python manage.py migrate && python manage.py runserver
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-## Use it your way
+## Các trang và API
 
-**Run it as a product.** Deploy the app as is, or point `MODEL_DIR` at your own model. See [Deployment](#deployment).
+| Đường dẫn | Mô tả |
+|---|---|
+| `/` | Chuyển tới trang khám phá phim; yêu cầu POST vẫn hỗ trợ gửi tên phim để nhận gợi ý |
+| `/movies/` | Duyệt, tìm kiếm và lọc phim |
+| `/movies/<tmdb_id>/` | Chi tiết phim |
+| `/recommendation` | Form nhập tên phim để tìm phim tương tự |
+| `/for-you/` | Gợi ý cá nhân hóa, yêu cầu đăng nhập |
+| `/favorites/` | Danh sách phim yêu thích |
+| `/accounts/login/`, `/accounts/signup/` | Đăng nhập và đăng ký |
+| `/api/search/?q=matrix` | API autocomplete; truy vấn từ 2 ký tự trở lên |
+| `/api/model-status/` | Trạng thái tải model |
+| `/api/health/` | Health check cho deployment |
 
-**Use it as a pipeline.** Train on your own catalogue and ship the output directory. Any CSV with TMDB-style columns works. See [Model training](#model-training).
+Trang `/movies/` và chi tiết phim dùng TMDB khi đã cấu hình token; nếu không, ứng dụng thử lấy dữ liệu từ model offline. Gợi ý tại `/recommendation` dùng model suy luận offline. Trang `/for-you/` sử dụng dữ liệu tương tác của người dùng và TMDB.
 
-**Use the model from your own code.** The inference class works without Django and supports year, genre and rating filters:
+## Model và huấn luyện
 
-```python
-from training.infer import MovieRecommender
+Model mẫu nằm trong `demo_model/`. Model được tải nền một lần trong mỗi process; endpoint `/api/model-status/` cho biết trạng thái tải. Model runtime cần metadata, ánh xạ tên phim và dữ liệu tương đồng (top-K neighbours hoặc ma trận similarity).
 
-rec = MovieRecommender("demo_model")
-result = rec.get_recommendations(
-    "The Dark Knight", n_recommendations=5, min_year=2010, min_rating=7.0
-)
-for movie in result["recommendations"]:
-    print(movie["title"], movie["rating"], movie["similarity_score"])
+Để huấn luyện model riêng, cài thêm dependencies:
+
+```powershell
+python -m pip install -r requirements-train.txt
+python training/train.py .\TMDB_movie_dataset_v11.csv -o .\models
 ```
 
-**Use the JSON API.** Autocomplete and health endpoints are documented in the [API reference](#api-reference).
+Lệnh trên dùng cấu hình mặc định: ngưỡng 50 lượt bình chọn và tối đa 50.000 phim. Dataset cần có cấu trúc cột tương thích với TMDB Movie Dataset, gồm thông tin như `title`, `status`, `vote_count`, `genres`, `keywords`, `production_companies`, `production_countries`, `overview` và `tagline`.
 
-## Model training
+Ứng dụng mặc định tìm model trong `models/` rồi tới `demo_model/`. Để chỉ định vị trí khác, đặt `MODEL_DIR` trước khi chạy:
 
-Training is optional. The committed demo model covers 6,248 well-known films (500 or more votes). Train your own for a larger catalogue, another language or your own dataset. Download the [TMDB Movies Dataset](https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930k-movies) (or any CSV with the same columns), then:
-
-```bash
-pip install -r requirements-train.txt
-
-# Default: films with 50+ votes, up to 50,000 of them, 50 neighbours each.
-# On the TMDB dataset that is about 26,000 films and a 16 MB model.
-python training/train.py ./TMDB_movie_dataset_v11.csv -o models
-
-# Smaller and faster: only films with 500+ votes (about 6,000 films, 4 MB)
-python training/train.py ./TMDB_movie_dataset_v11.csv -o models -q high -m 10000
-
-python training/train.py --help   # all options
+```powershell
+$env:MODEL_DIR = "$PWD\models"
+python manage.py runserver
 ```
 
-From Python:
+Xem toàn bộ tùy chọn huấn luyện và hướng dẫn dữ liệu trong [training/guide.md](training/guide.md).
 
-```python
-from training.train import MovieRecommenderTrainer
+## Cấu hình
 
-trainer = MovieRecommenderTrainer(output_dir="./models", n_components=500, top_k=50)
-df, neighbors = trainer.train(
-    "path/to/your/dataset.csv",
-    quality_threshold="medium",   # low, medium or high
-    max_movies=50000,
-)
+Đặt các biến này trong môi trường chạy ứng dụng (hoặc phần Environment của nền tảng deploy):
+
+| Biến | Ý nghĩa |
+|---|---|
+| `SECRET_KEY` | Khóa Django; phải đặt giá trị riêng khi chạy production |
+| `DEBUG` | Mặc định bật khi phát triển; production cần đặt `False` |
+| `ALLOWED_HOSTS` | Danh sách hostname, phân cách bằng dấu phẩy |
+| `CSRF_TRUSTED_ORIGINS` | Các origin tin cậy cho request CSRF qua HTTPS |
+| `TMDB_ACCESS_TOKEN` | Read access token để bật TMDB API |
+| `MODEL_DIR` | Thư mục model; nếu không có thì ứng dụng tìm model mẫu |
+| `RECOMMENDATION_COUNT` | Số kết quả gợi ý; mặc định `15` |
+| `SQLITE_PATH` | Đường dẫn SQLite; mặc định là `db.sqlite3` |
+| `SECURE_SSL_REDIRECT` | Chuyển hướng HTTPS trong production; mặc định bật khi `DEBUG=False` |
+| `MODEL_URL` | Tùy chọn riêng trong `render.yaml`: URL archive model tải lúc build |
+
+## Kiểm tra
+
+```powershell
+python manage.py check
+python manage.py test
 ```
 
-The [Training Guide](training/guide.md) covers dataset requirements, tuning and sizing in detail.
-
-## API reference
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Search page |
-| `/` | POST | Submit a title, render recommendations |
-| `/api/search/?q=` | GET | Autocomplete (two or more characters) |
-| `/api/model-status/` | GET | Model loading progress |
-| `/api/health/` | GET | Liveness and readiness probe |
-
-**Autocomplete**
-
-```http
-GET /api/search/?q=matrix
-```
-
-```json
-{
-  "movies": ["The Matrix", "The Animatrix", "The Matrix Reloaded", "The Matrix Revolutions", "The Matrix Resurrections"],
-  "count": 5
-}
-```
-
-**Health**
-
-```http
-GET /api/health/
-```
-
-```json
-{"status": "healthy", "model_loaded": true, "movies_loaded": 6248, "model_dir": "demo_model"}
-```
-
-While a model is loading, `status` is `starting` with HTTP 200. If no model is found or loading fails, it is `unhealthy` with HTTP 503.
-
-**Model status**
-
-```json
-{"loaded": true, "progress": 100, "status": "ready"}
-```
-
-`status` is one of `loading`, `ready`, `missing` or `error`.
-
-The full reference is in [PROJECT_GUIDE.md](PROJECT_GUIDE.md#-api-reference).
-
-## Configuration
-
-Copy `.env.example` to `.env`. Every value has a safe development default.
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `SECRET_KEY` | Django secret. **Required** when `DEBUG=False`. | development key |
-| `DEBUG` | Never `True` in production. | `True` |
-| `ALLOWED_HOSTS` | Comma-separated hostnames. **Required** in production. | localhost |
-| `CSRF_TRUSTED_ORIGINS` | Origins trusted for HTTPS form posts. | derived on Render |
-| `SECURE_SSL_REDIRECT` | Set `False` if nothing in front terminates TLS. | `True` |
-| `MODEL_DIR` | Directory holding a trained model. | `demo_model/` is found automatically |
-| `MODEL_URL` | Build-time download of a model archive (Render). | unset |
-| `RECOMMENDATION_COUNT` | Results per search. | `15` |
-
-The app checks `MODEL_DIR`, then `models/`, `demo_model/` and `static/`, and uses the first directory that holds a complete model.
-
-## Deployment
-
-Deployments work as is: the committed `demo_model/` is found automatically. The options below are only for shipping a larger model.
-
-### Shipping a bigger model
-
-**Option A, replace the demo model.** Train into `demo_model/` and commit it:
-
-```bash
-pip install -r requirements-train.txt
-python training/train.py ./TMDB_movie_dataset_v11.csv -o demo_model -q high -m 10000
-git add demo_model && git commit -m "Update demo model"
-```
-
-`models/` is git-ignored so full-size models never enter history, and `*.pkl` is ignored repository-wide, so the retraining artifacts (an SVD pickle can be ten times the rest of the model) are skipped automatically.
-
-**Option B, fetch at build time.** Package a model and upload it as a GitHub Release asset:
-
-```bash
-python training/train.py ./TMDB_movie_dataset_v11.csv -o models
-tar czf model.tar.gz -C models --exclude='*.pkl' .
-```
-
-Set `MODEL_URL` to the asset URL. `render.yaml` downloads and unpacks it at build time. The app never fetches anything at runtime.
+## Deploy
 
 ### Render
 
-Connect the repository; Render reads `render.yaml`. Set `ALLOWED_HOSTS` for a custom domain and `MODEL_URL` for option B. `SECRET_KEY` is generated for you, and `/api/health/` is the health check.
-
-### Heroku
-
-Uses the `Procfile`. Commit a model (option A) and set config vars:
-
-```bash
-heroku config:set DEBUG=False
-heroku config:set MODEL_DIR=demo_model
-heroku config:set ALLOWED_HOSTS=your-app.herokuapp.com
-heroku config:set SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(50))')"
-```
+Project có sẵn [render.yaml](render.yaml). Tạo Web Service từ repository để Render dùng cấu hình này. Thiết lập `ALLOWED_HOSTS` cho domain của bạn; `MODEL_URL` chỉ cần khi muốn tải model archive riêng trong lúc build. Health check được cấu hình tại `/api/health/`.
 
 ### Docker
 
-The repository includes a demo model in `demo_model/`, so training is optional.
-The image includes the project files present at build time. After changing the
-UI or application code, rebuild the image and start a new container to see the
-changes.
-
-On Windows, open PowerShell in the repository root:
-
 ```powershell
-cd D:\Python\GoiYPhim\movie-recommendation-system
+docker build -t movie-recommendation-system .
 
 $secret = python -c "import secrets; print(secrets.token_urlsafe(50))"
-# Optional, for live TMDB data:
-# $env:TMDB_ACCESS_TOKEN = "your-read-access-token"
-docker build -t movie-recommender .
-
-docker run --rm --name goiyphim -p 8000:8000 `
+docker run --rm -p 8000:8000 `
   -e "SECRET_KEY=$secret" `
   -e "ALLOWED_HOSTS=localhost,127.0.0.1" `
   -e "SECURE_SSL_REDIRECT=False" `
-  -e "TMDB_ACCESS_TOKEN=$env:TMDB_ACCESS_TOKEN" `
-  movie-recommender
+  movie-recommendation-system
 ```
 
-Open [http://localhost:8000](http://localhost:8000). The home page shows the
-movie catalogue; use **Tìm gợi ý** and submit a movie title to generate
-recommendations. Stop an older container with `docker stop goiyphim` before
-rebuilding and running it again. To stop the foreground container, press
-`Ctrl+C` in the PowerShell window.
+`SECURE_SSL_REDIRECT=False` phù hợp cho chạy local qua HTTP; khi deploy sau proxy HTTPS, cấu hình theo môi trường thực tế. Image khởi chạy migrations và Gunicorn với một worker, bốn threads; model được giữ trong process nên tăng số worker cũng làm tăng lượng model nằm trong bộ nhớ.
 
-Without `TMDB_ACCESS_TOKEN`, the app uses the bundled offline model. Do not
-commit the token.
+## Cấu trúc thư mục
 
-`SECURE_SSL_REDIRECT=False` is needed for local HTTP when no TLS-terminating
-proxy is in front of the container; otherwise requests redirect to `https://`.
-
-All three targets run one gunicorn worker with four threads. The model is held per process, so extra workers would multiply memory use; threads provide the concurrency.
-
-### Checklist
-
-- `SECRET_KEY` is set (the app refuses to start with the development key when `DEBUG=False`)
-- `DEBUG=False`
-- `ALLOWED_HOSTS` includes your domain
-- `curl https://your-app/api/health/` returns `"status": "healthy"`
-
-More detail is in [PROJECT_GUIDE.md](PROJECT_GUIDE.md#-deployment).
-
-## Performance
-
-Measured on a developer machine against the TMDB v11 dataset (1.49 million rows), using 300 random titles per model:
-
-| | Demo model (6,248 films) | Default training (26,326 films) | Large (100,000 films) |
-|---|---|---|---|
-| Recommendations per query, median / p95 | 1.1 ms / 1.6 ms | 1.1 ms / 1.3 ms | 1.1 ms / 1.4 ms |
-| Autocomplete, median / p95 | 0.9 ms / 1.0 ms | 1.0 ms / 4.4 ms | 1.1 ms / 15.9 ms |
-| Model load | 40 ms | 75 ms | 210 ms |
-| Model files served | 3.8 MB | 16.1 MB | 61.5 MB |
-| Training time | 31 s | about 1 min | 4.3 min |
-| Training peak memory | 2.5 GB | 2.5 GB | 3.9 GB |
-
-The columns come from `-q high -m 10000`, the default `-q medium`, and `-q low -m 100000`. Query times are measured inside the recommender, so they exclude HTTP and template rendering. Recommendation time stays flat because a search reads one precomputed row; only autocomplete, which scans titles, grows with the catalogue. The 2.5 GB floor is mostly reading the 658 MB CSV, not building the model.
-
-## Project structure
-
-```
-Movie-Recommendation-System/
-├── movie_recommendation/    Django project (settings, urls, wsgi)
-├── recommender/             The app: views, templates, tests
-├── training/                Pipeline: train.py, infer.py, guide.md, tests
-├── demo_model/              Committed demo model (6,248 films, 3.8 MB)
-├── assets/                  Logo, header, architecture diagram, screenshots
-├── static/                  Application icon
-├── Dockerfile  Procfile  render.yaml
-├── requirements.txt         Serving dependencies
-├── requirements-train.txt   Extra dependencies for training
-├── .env.example             Documented environment variables
-├── PROJECT_GUIDE.md  CONTRIBUTING.md  CHANGELOG.md
-└── .github/workflows/ci.yml Lint, system checks and tests on every push
+```text
+movie_recommendation/   Cấu hình Django, URL và WSGI
+recommender/            Views, model dữ liệu, templates và tests
+training/               Huấn luyện và suy luận model
+demo_model/             Model mẫu
+static/                 Static files
+assets/                 Tài nguyên dự án
+manage.py
+requirements.txt        Dependencies chạy ứng dụng
+requirements-train.txt  Dependencies bổ sung để huấn luyện
+render.yaml             Cấu hình Render
+Dockerfile              Cấu hình Docker
 ```
 
-## Documentation
+## Tài liệu
 
-| Topic | Where |
-|-------|-------|
-| Installation, configuration, troubleshooting | [PROJECT_GUIDE.md](PROJECT_GUIDE.md) |
-| Training, tuning, dataset requirements | [training/guide.md](training/guide.md) |
-| Development setup and code layout | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Release history | [CHANGELOG.md](CHANGELOG.md) |
-| Security reports | [SECURITY.md](SECURITY.md) |
+- [Hướng dẫn dự án](PROJECT_GUIDE.md)
+- [Hướng dẫn huấn luyện](training/guide.md)
+- [Đóng góp cho dự án](CONTRIBUTING.md)
+- [Lịch sử thay đổi](CHANGELOG.md)
+- [Báo cáo bảo mật](SECURITY.md)
 
-## Contributing
+## Dữ liệu và giấy phép
 
-Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, the layout of the code, and the non-obvious things worth knowing before changing the model pipeline. Before opening a pull request, run the same three checks CI runs:
+Dữ liệu phim và poster trực tuyến được cung cấp bởi TMDB. Sản phẩm sử dụng TMDB API nhưng không được TMDB chứng thực hoặc chứng nhận. Xem [điều khoản TMDB](https://www.themoviedb.org/api-terms-of-use).
 
-```bash
-python manage.py check
-python manage.py test
-ruff check .
-```
-
-Please add a test with a bug fix and note the change under `[Unreleased]` in `CHANGELOG.md`. Questions and bug reports go to [Issues](https://github.com/inboxpraveen/Movie-Recommendation-System/issues).
-
-## Sponsor
-
-This project is maintained by one person. If it saves you time, or you run it somewhere that matters to you, [sponsoring](https://github.com/sponsors/inboxpraveen) helps keep dependencies current, the demo model fresh, and issues answered. Starring the repository and sharing it helps as well.
-
-## Data and attribution
-
-Movie metadata and poster images come from [TMDB](https://www.themoviedb.org/).
-
-> This product uses data from TMDB but is not endorsed or certified by TMDB.
-
-- The committed `demo_model/` is derived from the [TMDB Movies Dataset](https://www.kaggle.com/datasets/asaniczka/tmdb-movies-dataset-2023-930k-movies) and contains titles, overviews, ratings and poster paths that originate from TMDB.
-- Poster images load directly from `image.tmdb.org` at render time. None are redistributed in this repository, and the screenshots above are taken with posters turned off for that reason.
-- If you extend this project to call the TMDB API directly, their terms require the wording "This product uses the TMDB API but is not endorsed or certified by TMDB" together with the TMDB logo. See [TMDB's terms of use](https://www.themoviedb.org/api-terms-of-use).
-
-The MIT licence covers this project's own source code, not the movie data.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+Mã nguồn theo giấy phép trong [LICENSE](LICENSE). Giấy phép mã nguồn không đồng nghĩa với quyền phân phối dữ liệu phim hoặc hình ảnh từ TMDB.
