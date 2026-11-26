@@ -63,6 +63,11 @@ def _genre_key(value):
     return ''.join(char for char in str(value).lower() if char.isalnum())
 
 
+def _imdb_id(value):
+    value = str(value).strip() if value is not None else ''
+    return value if value.startswith('tt') and value[2:].isdigit() else ''
+
+
 def get_offline_movie_details(tmdb_id):
     from .views import _get_recommender
 
@@ -84,6 +89,7 @@ def get_offline_movie_details(tmdb_id):
     return {
         'id': int(movie['id']),
         'title': str(movie['title']),
+        'imdb_id': _imdb_id(movie.get('imdb_id')),
         'release_date': str(movie.get('release_date') or ''),
         'poster_path': str(movie.get('poster_path') or ''),
         'vote_average': float(movie.get('vote_average') or 0),
@@ -155,6 +161,7 @@ def browse(request):
             rows.append({
                 'id': int(movie['id']),
                 'title': title,
+                'imdb_id': _imdb_id(movie.get('imdb_id')),
                 'release_date': release_date,
                 'poster_path': str(poster_path) if poster_path else '',
                 'vote_average': float(movie.get('vote_average') or 0),

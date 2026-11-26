@@ -1,0 +1,12 @@
+<a class="external-movie-link external-google-link"
+   href="https://www.google.com/search?q={{ movie.title|default:'movie'|urlencode }}+movie"
+   target="_blank" rel="noopener noreferrer">🔍 Google</a>
+{% if movie.imdb_id %}
+<a class="external-movie-link external-imdb-link"
+   href="https://www.imdb.com/title/{{ movie.imdb_id }}/"
+   target="_blank" rel="noopener noreferrer">⭐ IMDb</a>
+{% else %}
+<a class="external-movie-link external-imdb-link"
+   href="https://www.imdb.com/find/?q={{ movie.title|default:'movie'|urlencode }}"
+   target="_blank" rel="noopener noreferrer">⭐ IMDb</a>
+{% endif %}

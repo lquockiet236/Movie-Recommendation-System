@@ -1,16 +1,21 @@
 <div class="grid">
   {% for film in films %}
-  <a class="movie" href="{% url 'recommender:tmdb_detail' film.id %}">
-    {% if film.poster_path %}
-    <img loading="lazy" src="https://image.tmdb.org/t/p/w342{{ film.poster_path }}" alt="Poster {{ film.title }}">
-    {% else %}
-    <div style="aspect-ratio:2/3;display:grid;place-items:center;background:#334155">Chưa có poster</div>
-    {% endif %}
-    <div class="info">
-      <strong>{{ film.title|default:'Chưa có tên' }}</strong>
-      <span class="muted">{{ film.release_date|slice:':4' }} · <span class="rating">★ {{ film.vote_average|floatformat:1 }}</span></span>
+  <article class="movie">
+    <a class="movie-primary" href="{% url 'recommender:tmdb_detail' film.id %}">
+      {% if film.poster_path %}
+      <img loading="lazy" src="https://image.tmdb.org/t/p/w342{{ film.poster_path }}" alt="Poster {{ film.title }}">
+      {% else %}
+      <div class="movie-poster-fallback">Chưa có poster</div>
+      {% endif %}
+      <div class="info">
+        <strong>{{ film.title|default:'Chưa có tên' }}</strong>
+        <span class="muted">{{ film.release_date|slice:':4' }} · <span class="rating">★ {{ film.vote_average|floatformat:1 }}</span></span>
+      </div>
+    </a>
+    <div class="movie-actions">
+      {% include 'recommender/tmdb_external_links.html' with movie=film %}
     </div>
-  </a>
+  </article>
   {% empty %}
   <p class="muted tmdb-empty-message">Không tìm thấy phim phù hợp.</p>
   {% endfor %}

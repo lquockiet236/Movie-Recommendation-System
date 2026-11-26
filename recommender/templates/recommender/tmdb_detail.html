@@ -15,6 +15,9 @@
     <div class="genre-list">
       {% for genre in movie.genres %}<span class="genre-chip">{{ genre.name }}</span>{% empty %}<span class="genre-chip">Chưa có thể loại</span>{% endfor %}
     </div>
+    <div class="movie-actions detail-movie-actions">
+      {% include 'recommender/tmdb_external_links.html' with movie=movie %}
+    </div>
     <p class="muted"><strong>Thời lượng:</strong> {{ movie.runtime|default:'Chưa rõ' }} phút</p>
     <p class="overview">{{ movie.overview|default:'Chưa có mô tả tiếng Việt.' }}</p>
     <div class="action-toolbar{% if not user.is_authenticated %} action-toolbar-guest{% endif %}" aria-label="Thao tác phim">

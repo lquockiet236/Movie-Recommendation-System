@@ -254,6 +254,16 @@ class ViewTests(ModelBackedTestCase):
         self.assertContains(response, 'Không tìm thấy phim.')
 
     @override_settings(TMDB_ACCESS_TOKEN='')
+    def test_browse_movie_cards_include_google_and_imdb_links(self):
+        response = self.client.get('/movies/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'external-google-link', count=6)
+        self.assertContains(response, 'external-imdb-link', count=6)
+        self.assertContains(response, 'https://www.imdb.com/title/tt0133093/')
+        self.assertContains(response, 'https://www.imdb.com/find/?q=')
+
+    @override_settings(TMDB_ACCESS_TOKEN='')
     def test_browse_year_filter_requires_four_ascii_digits(self):
         for year in ('199', '01999', '20x0', '２０２０'):
             with self.subTest(year=year):
@@ -330,6 +340,9 @@ class ViewTests(ModelBackedTestCase):
         response = self.client.get('/movies/1/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Tìm phim tương tự')
+        self.assertContains(response, 'external-google-link')
+        self.assertContains(response, 'external-imdb-link')
+        self.assertContains(response, 'https://www.imdb.com/title/tt0133093/')
         self.assertNotContains(response, 'Chi tiết offline từ model demo.')
         self.assertNotContains(response, 'This product uses the TMDB API but is not endorsed or certified by TMDB.')
         get_recommendations.assert_not_called()
