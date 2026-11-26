@@ -3,7 +3,7 @@ URL Configuration for Movie Recommendation System
 """
 from django.urls import path
 
-from . import views, account_views, tmdb_views, recommendation_views, evaluation_views
+from . import account_views, evaluation_views, recommendation_views, tmdb_views, views
 
 app_name = 'recommender'
 

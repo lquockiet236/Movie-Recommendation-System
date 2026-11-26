@@ -1,14 +1,14 @@
+from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
+
+from . import tmdb_service as tmdb
 from .forms import SignUpForm
 from .models import FavoriteMovie, MovieInteraction, MovieRating
-from . import tmdb_service as tmdb
 from .tmdb_views import get_offline_movie_details
-from django.urls import reverse
-from django.contrib import messages
 
 
 @require_http_methods(['GET', 'POST'])

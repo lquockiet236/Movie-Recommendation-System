@@ -204,6 +204,7 @@ LOGGING = {
 # Point MODEL_DIR at any directory produced by training/train.py. Relative
 # paths resolve against BASE_DIR so the app behaves the same regardless of the
 # working directory gunicorn happens to start in.
+MODEL_DIR_AUTO = not bool(os.environ.get('MODEL_DIR'))
 MODEL_DIR = Path(os.environ.get('MODEL_DIR') or (BASE_DIR / 'models'))
 if not MODEL_DIR.is_absolute():
     MODEL_DIR = (BASE_DIR / MODEL_DIR).resolve()

@@ -84,7 +84,30 @@ python training/train.py .\TMDB_movie_dataset_v11.csv -o .\models
 
 Lệnh trên dùng cấu hình mặc định: ngưỡng 50 lượt bình chọn và tối đa 50.000 phim. Dataset cần có cấu trúc cột tương thích với TMDB Movie Dataset, gồm thông tin như `title`, `status`, `vote_count`, `genres`, `keywords`, `production_companies`, `production_countries`, `overview` và `tagline`.
 
-Ứng dụng mặc định tìm model trong `models/` rồi tới `demo_model/`. Để chỉ định vị trí khác, đặt `MODEL_DIR` trước khi chạy:
+### Thu thập từ TMDB API rồi train
+
+Có thể chạy một job riêng để lấy phim theo trang từ TMDB, lấy metadata chi tiết và train model mới. Job cần API Read Access Token và các dependencies huấn luyện:
+
+```powershell
+python -m pip install -r requirements-train.txt
+$env:TMDB_ACCESS_TOKEN = "TMDB_READ_ACCESS_TOKEN"
+python manage.py collect_train_tmdb --max-movies 1000 --quality medium
+```
+
+Mặc định job lưu CSV ở `data/tmdb_training_dataset.csv` và model vào thư mục phiên bản mới `models_tmdb_<timestamp>`, tránh ghi đè model đang chạy. Danh sách thu thập được sắp theo độ phổ biến hiện tại thay vì tổng lượt bình chọn tích lũy để tránh thiên lệch về phim cũ. Thu thập metadata chi tiết gọi API cho từng phim, nên thời gian và số request tăng theo `--max-movies`; mặc định nghỉ 0,25 giây giữa các request chi tiết. Job giới hạn tối đa 10.000 phim mỗi lần chạy.
+
+Khi xếp hạng, `/recommendation` vẫn dựa trên độ tương đồng nội dung, đồng thời cộng ưu tiên nhỏ cho phim phát hành trong 15 năm gần đây. Model hiện tại không tự thay đổi dữ liệu: chạy lại job thu thập/train bên trên rồi restart ứng dụng để nạp model có danh sách phim mới hơn.
+
+Sau khi job hoàn tất, nếu `MODEL_DIR` chưa được đặt, ứng dụng sẽ tự chọn model hợp lệ mới nhất trong `models_tmdb_*` khi khởi động. Dừng rồi chạy lại ứng dụng:
+
+```powershell
+Remove-Item Env:MODEL_DIR -ErrorAction SilentlyContinue
+python manage.py runserver
+```
+
+Nếu dùng `--output-dir` tùy chỉnh, đặt `MODEL_DIR` theo đường dẫn lệnh in ra thay vì dùng tự động. Trên hosting, để tự chọn phiên bản mới nhất thì xóa biến `MODEL_DIR` đã cấu hình ở dịch vụ; hoặc đặt nó thành thư mục model cụ thể, rồi restart/redeploy. CSV và model output bị Git ignore; không commit token TMDB.
+
+Khi `MODEL_DIR` không được đặt, ứng dụng tìm model theo thứ tự: phiên bản `models_tmdb_*` mới nhất, `models/`, rồi `demo_model/` và các thư mục dự phòng. Để ghim một model cụ thể, đặt `MODEL_DIR` trước khi chạy:
 
 ```powershell
 $env:MODEL_DIR = "$PWD\models"

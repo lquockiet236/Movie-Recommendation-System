@@ -1,4 +1,4 @@
-<div class="grid">
+<div class="grid{% if horizontal %} movie-horizontal-scroll{% endif %}">
   {% for film in films %}
   <article class="movie">
     <a class="movie-primary" href="{% url 'recommender:tmdb_detail' film.id %}">

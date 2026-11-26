@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Movie
+
+from .models import FavoriteMovie, Movie, MovieInteraction, MovieRating
 
 
 @admin.register(Movie)
@@ -17,15 +18,13 @@ class MovieAdmin(admin.ModelAdmin):
     search_fields = ("title", "tmdb_id")
     readonly_fields = ("created_at",)
 
-from .models import FavoriteMovie
-
 
 @admin.register(FavoriteMovie)
 class FavoriteMovieAdmin(admin.ModelAdmin):
     list_display = ('user', 'movie_title', 'tmdb_id', 'added_at')
     search_fields = ('user__username', 'movie_title')
     readonly_fields = ('added_at',)
-from .models import MovieInteraction, MovieRating
+
 
 @admin.register(MovieInteraction)
 class MovieInteractionAdmin(admin.ModelAdmin):
@@ -33,6 +32,7 @@ class MovieInteractionAdmin(admin.ModelAdmin):
     list_filter = ('action', 'created_at')
     search_fields = ('user__username', 'tmdb_id')
     readonly_fields = ('user', 'tmdb_id', 'action', 'created_at')
+
 
 @admin.register(MovieRating)
 class MovieRatingAdmin(admin.ModelAdmin):

@@ -364,7 +364,7 @@
     {% if trending %}
       <section>
         <h2>Thịnh hành tuần này</h2>
-        {% include 'recommender/tmdb_cards.html' with films=trending %}
+        {% include 'recommender/tmdb_cards.html' with films=trending horizontal=True %}
       </section>
     {% endif %}
     <section class="section">

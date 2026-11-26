@@ -1,9 +1,13 @@
 from unittest.mock import Mock, patch
+
+import pandas as pd
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
-import pandas as pd
+
+from .collaborative_filtering import collaborative_scores
 from .models import FavoriteMovie, MovieRating
 from .recommendation_engine import recommend
+
 
 class RecommendationTests(TestCase):
     def setUp(self):
@@ -189,14 +193,27 @@ class RecommendationTests(TestCase):
     def test_excludes_rated_and_favorite(self, detail, similar, discover, popular):
         FavoriteMovie.objects.create(user=self.user, tmdb_id=1, movie_title='Seed')
         MovieRating.objects.create(user=self.user, tmdb_id=2, rating=2)
-        detail.return_value = {'id': 1, 'genres': [{'id': 878, 'name': 'Science Fiction'}], 'overview': 'space future', 'keywords': {'keywords': []}}
-        similar.return_value = [{'id': 2, 'title': 'Rated'}, {'id': 3, 'title': 'Candidate', 'genre_ids': [878], 'overview': 'space future', 'vote_average': 8, 'vote_count': 3000}]
+        detail.return_value = {
+            'id': 1,
+            'genres': [{'id': 878, 'name': 'Science Fiction'}],
+            'overview': 'space future',
+            'keywords': {'keywords': []},
+        }
+        similar.return_value = [
+            {'id': 2, 'title': 'Rated'},
+            {
+                'id': 3,
+                'title': 'Candidate',
+                'genre_ids': [878],
+                'overview': 'space future',
+                'vote_average': 8,
+                'vote_count': 3000,
+            },
+        ]
         discover.return_value = []
         popular.return_value = []
         ids = [item['movie']['id'] for item in recommend(self.user)['movies']]
         self.assertEqual(ids, [3])
-
-from .collaborative_filtering import collaborative_scores
 
 class CollaborativeTests(TestCase):
     def setUp(self):

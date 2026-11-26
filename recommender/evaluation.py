@@ -4,9 +4,10 @@ Content-based uses Movie rows already saved locally. This is a local-data
 proxy for the live TMDB candidate pipeline, NOT a measurement of the live page.
 """
 from collections import Counter, defaultdict
+
 from .collaborative_filtering import collaborative_scores
-from .recommendation_engine import tokens, cosine_scores
 from .models import Movie, MovieRating
+from .recommendation_engine import cosine_scores, tokens
 
 
 def _metadata():
@@ -52,12 +53,18 @@ def evaluate(k=5, min_positive=3):
         cb = {}
         if seed and local_candidates:
             sims = cosine_scores(seed, [metadata[mid] for mid in local_candidates])
-            cb = dict(zip(local_candidates, sims))
+            cb = dict(zip(local_candidates, sims, strict=False))
         ranked = {
             'Content-Based (local)': sorted(local_candidates, key=lambda mid: (-cb.get(mid, 0), mid)) if seed else [],
-            'Collaborative Filtering': sorted((mid for mid in candidates if mid in cf), key=lambda mid: (-cf[mid], mid)),
+            'Collaborative Filtering': sorted(
+                (mid for mid in candidates if mid in cf),
+                key=lambda mid: (-cf[mid], mid),
+            ),
             'Hybrid (local)': sorted((mid for mid in candidates if mid in cb or mid in cf),
-                                     key=lambda mid: (-(0.65 * cb.get(mid, 0) + 0.35 * cf.get(mid, 0)), mid)),
+                                     key=lambda mid: (
+                                         -(0.65 * cb.get(mid, 0) + 0.35 * cf.get(mid, 0)),
+                                         mid,
+                                     )),
         }
         for name, ordered in ranked.items():
             stat = totals[name]
@@ -78,7 +85,18 @@ def evaluate(k=5, min_positive=3):
             'coverage': stat['covered'] / users if users else None,
             'hits': hits, 'users': users,
         }
-    return {'k': k, 'eligible_users': len(eligible), 'rating_users': len(ratings),
-            'catalog_size': len(catalog), 'metadata_movies': len(metadata), 'results': results,
-            'method': 'Leave-one-positive-out (deterministic, offline)',
-            'note': 'Một phim tích cực được giữ lại mỗi người dùng. Content-Based và Hybrid dùng metadata lưu trong SQLite; không đo trực tiếp pipeline TMDB trực tuyến. Precision@K tính trên số gợi ý thực tế; Recall@K trên một phim kiểm thử/người dùng.'}
+    note = (
+        'Một phim tích cực được giữ lại mỗi người dùng. Content-Based và Hybrid dùng '
+        'metadata lưu trong SQLite; không đo trực tiếp pipeline TMDB trực tuyến. '
+        'Precision@K tính trên số gợi ý thực tế; Recall@K trên một phim kiểm thử/người dùng.'
+    )
+    return {
+        'k': k,
+        'eligible_users': len(eligible),
+        'rating_users': len(ratings),
+        'catalog_size': len(catalog),
+        'metadata_movies': len(metadata),
+        'results': results,
+        'method': 'Leave-one-positive-out (deterministic, offline)',
+        'note': note,
+    }

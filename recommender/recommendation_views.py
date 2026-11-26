@@ -1,9 +1,11 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
-from django.views.decorators.http import require_GET
 from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
+
 from .recommendation_engine import recommend_for_favorites
 from .tmdb_service import TMDBError
+
 
 @login_required
 @require_GET

@@ -1,6 +1,7 @@
 """TMDB API integration. API credentials stay server-side."""
-from datetime import date
 import logging
+from datetime import date
+
 import requests
 from django.conf import settings
 from django.core.cache import cache

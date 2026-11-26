@@ -1,10 +1,12 @@
 """Public TMDB browse pages. No API secret is sent to the browser."""
 from collections.abc import Callable
 from datetime import date
+
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
+
 from . import tmdb_service as tmdb
-from .models import FavoriteMovie, MovieRating, MovieInteraction
+from .models import FavoriteMovie, MovieInteraction, MovieRating
 
 MOVIES_PER_PAGE = 24
 TMDB_PAGE_SIZE = 20

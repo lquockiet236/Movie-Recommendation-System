@@ -158,6 +158,31 @@ class RecommenderCoreTests(ModelBackedTestCase):
         scores = [float(m['similarity_score']) for m in result['recommendations']]
         self.assertEqual(scores, sorted(scores, reverse=True))
 
+    def test_recent_movie_can_outrank_a_similarly_scored_older_movie(self):
+        recommender = views._get_recommender()
+        with (
+            patch('recommender.views.date') as mocked_date,
+            patch.object(
+                recommender,
+                '_candidate_neighbours',
+                return_value=(
+                    np.array([2, 4]),
+                    np.array([0.60, 0.59], dtype=np.float32),
+                ),
+            ),
+        ):
+            mocked_date.today.return_value.year = 2026
+            result = recommender.get_recommendations('The Matrix', n=2)
+
+        self.assertEqual(
+            [movie['title'] for movie in result['recommendations']],
+            ['Tom & Jerry', 'Inception'],
+        )
+        self.assertEqual(
+            [float(movie['similarity_score']) for movie in result['recommendations']],
+            [0.59, 0.6],
+        )
+
     def test_min_rating_filter(self):
         result = views._get_recommender().get_recommendations(
             'The Matrix', n=5, min_rating=8.0)
@@ -594,6 +619,26 @@ class NavigationTests(TestCase):
         )
         self.assertNotContains(movies_response, 'Tương tác')
         self.assertNotContains(favorites_response, 'Tương tác')
+
+    def test_weekly_trending_movies_use_a_horizontal_non_wrapping_strip(self):
+        with (
+            patch.object(tmdb_views.tmdb, 'movie_genres', return_value=[]),
+            patch.object(tmdb_views.tmdb, 'popular_movies', return_value=[]),
+            patch.object(
+                tmdb_views.tmdb,
+                'trending_movies',
+                return_value=[
+                    {'id': 101, 'title': 'Trending One'},
+                    {'id': 102, 'title': 'Trending Two'},
+                ],
+            ),
+        ):
+            response = self.client.get('/movies/')
+
+        self.assertContains(response, 'class="grid movie-horizontal-scroll"')
+        self.assertContains(response, 'flex-wrap:nowrap')
+        self.assertContains(response, 'Trending One')
+        self.assertContains(response, 'Trending Two')
 
     def test_interactions_page_is_removed(self):
         self.assertEqual(self.client.get('/interactions/').status_code, 404)

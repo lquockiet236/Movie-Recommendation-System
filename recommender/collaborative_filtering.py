@@ -5,6 +5,7 @@ with the target user; shrinkage avoids overconfident similarities on sparse data
 """
 from collections import defaultdict
 from math import sqrt
+
 from .models import FavoriteMovie, MovieRating
 
 
@@ -43,7 +44,7 @@ def collaborative_scores(user_id, preferences=None, min_overlap=2):
         denom = sqrt(sum(x*x for x in a) * sum(y*y for y in b))
         if not denom:
             continue
-        similarity = sum(x*y for x, y in zip(a, b)) / denom
+        similarity = sum(x * y for x, y in zip(a, b, strict=False)) / denom
         similarity = max(0.0, similarity) * len(shared) / (len(shared) + 3.0)
         if similarity <= 0:
             continue

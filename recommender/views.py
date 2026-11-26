@@ -10,6 +10,7 @@ import json
 import logging
 import threading
 import time
+from datetime import date
 from difflib import get_close_matches
 from pathlib import Path
 from urllib.parse import quote, quote_plus
@@ -35,6 +36,8 @@ REQUIRED_ARTIFACTS = ('config.json', 'title_to_idx.json', 'movie_metadata.parque
 # Upper bounds on user-supplied input, applied before any expensive work.
 MAX_QUERY_LENGTH = 200
 MAX_AUTOCOMPLETE_RESULTS = 20
+RECENCY_BONUS = 0.1
+RECENCY_WINDOW_YEARS = 15
 
 SEARCH_CACHE_TIMEOUT = 300  # seconds
 
@@ -339,6 +342,13 @@ class MovieRecommender:
             'imdb_link': f"https://www.imdb.com/title/{quote(str(imdb_id))}/" if imdb_id else None,
         }
 
+    def _recency_bonus(self, idx: int, current_year: int) -> float:
+        year = _year(self.metadata.iloc[int(idx)].get('release_date'))
+        if not year:
+            return 0.0
+        age = max(0, current_year - int(year))
+        return RECENCY_BONUS * max(0.0, 1.0 - age / RECENCY_WINDOW_YEARS)
+
     def get_recommendations(self, movie_title: str, n: int = 15,
                             min_rating: float | None = None) -> dict:
         """Recommend movies similar to ``movie_title``."""
@@ -352,12 +362,21 @@ class MovieRecommender:
         movie_idx = int(self.title_to_idx[matched_title])
         source = self.metadata.iloc[movie_idx]
 
-        # Over-fetch so post-filtering still has enough candidates to fill n.
-        pool = n * 4 + 25 if min_rating is not None else n + 5
+        # Over-fetch so rating filters and the recency boost have candidates
+        # beyond the most similar few titles.
+        pool = n * 4 + 25
         indices, scores = self._candidate_neighbours(movie_idx, pool)
+        current_year = date.today().year
+        ranked_candidates = sorted(
+            zip(indices, scores, strict=False),
+            key=lambda item: (
+                float(item[1]) + self._recency_bonus(int(item[0]), current_year)
+            ),
+            reverse=True,
+        )
 
         recommendations = []
-        for idx, score in zip(indices, scores, strict=False):
+        for idx, score in ranked_candidates:
             if len(recommendations) >= n:
                 break
             if min_rating is not None:
@@ -407,10 +426,22 @@ MISSING_MODEL_RETRY_SECONDS = 15.0
 
 def _resolve_model_dir() -> Path | None:
     """Return the first directory that actually contains a trained model."""
-    candidates = [Path(settings.MODEL_DIR)]
+    base_dir = Path(settings.BASE_DIR)
+    configured_dir = Path(settings.MODEL_DIR)
+    candidates = []
+    if (
+        getattr(settings, 'MODEL_DIR_AUTO', False)
+        and configured_dir.resolve() == (base_dir / 'models').resolve()
+    ):
+        candidates.extend(sorted(
+            (path for path in base_dir.glob('models_tmdb_*') if path.is_dir()),
+            key=lambda path: path.name,
+            reverse=True,
+        ))
+    candidates.append(configured_dir)
     # Kept for backwards compatibility with earlier documented locations.
     for extra in ('models', 'demo_model', 'static', 'training/models'):
-        candidate = Path(settings.BASE_DIR) / extra
+        candidate = base_dir / extra
         if candidate not in candidates:
             candidates.append(candidate)
 

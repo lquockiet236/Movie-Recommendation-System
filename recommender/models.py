@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -28,9 +29,6 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.title
-
-from django.conf import settings
-
 
 class FavoriteMovie(models.Model):
     # Titles refer to the recommender dataset, which is not the Movie SQL table.
@@ -74,7 +72,15 @@ class SearchHistory(models.Model):
 class MovieInteraction(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='movie_interactions')
     tmdb_id = models.PositiveIntegerField(db_index=True)
-    action = models.CharField(max_length=24, choices=[('detail', 'Xem chi tiết'), ('favorite', 'Yêu thích'), ('unfavorite', 'Bỏ yêu thích'), ('rating', 'Đánh giá')])
+    action = models.CharField(
+        max_length=24,
+        choices=[
+            ('detail', 'Xem chi tiết'),
+            ('favorite', 'Yêu thích'),
+            ('unfavorite', 'Bỏ yêu thích'),
+            ('rating', 'Đánh giá'),
+        ],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
