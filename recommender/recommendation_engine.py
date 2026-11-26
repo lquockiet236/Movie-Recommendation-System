@@ -40,8 +40,261 @@ def cosine_scores(profile, candidates):
     return scores
 
 
+def _favorite_movie_ids(user, limit=60):
+    favorite_rows = FavoriteMovie.objects.filter(user=user).values_list(
+        'tmdb_id', 'movie_title'
+    )[:limit]
+    favorite_ids = []
+    legacy_titles = []
+    for tmdb_id, title in favorite_rows:
+        if tmdb_id is not None:
+            favorite_ids.append(tmdb_id)
+        else:
+            legacy_titles.append(title)
+
+    if legacy_titles and len(favorite_ids) < limit:
+        from .views import _get_recommender
+
+        recommender = _get_recommender()
+        if recommender is not None:
+            indices_by_title = {
+                title.casefold(): index
+                for title, index in recommender.title_to_idx.items()
+            }
+            for title in legacy_titles:
+                index = indices_by_title.get(title.strip().casefold())
+                if index is None:
+                    continue
+                try:
+                    tmdb_id = int(recommender.metadata.iloc[int(index)]['id'])
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    continue
+                if tmdb_id not in favorite_ids:
+                    favorite_ids.append(tmdb_id)
+                if len(favorite_ids) >= limit:
+                    break
+
+    return favorite_ids
+
+
+def _offline_recommendations(seeds, excluded, limit):
+    from .views import _get_recommender
+
+    recommender = _get_recommender()
+    if recommender is None:
+        raise tmdb.TMDBError(
+            'Model offline đang tải hoặc chưa sẵn sàng. Vui lòng thử lại sau.'
+        )
+
+    metadata = recommender.metadata
+    results_by_id = {}
+    for seed_id in seeds:
+        source_rows = metadata[metadata['id'] == seed_id]
+        if source_rows.empty:
+            continue
+        source_title = str(source_rows.iloc[0]['title'])
+        result = recommender.get_recommendations(source_title, n=limit * 2)
+        for movie in result.get('recommendations', []):
+            movie_id = movie.get('id')
+            if movie_id is None:
+                continue
+            try:
+                movie_id = int(movie_id)
+                score = float(movie.get('similarity_percent', 0))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if movie_id in excluded:
+                continue
+
+            item = {
+                'movie': {
+                    'id': movie_id,
+                    'title': movie.get('title') or '',
+                    'poster_url': movie.get('poster_url'),
+                    'vote_average': movie.get('rating_value') or 0,
+                },
+                'score': score,
+                'reason': f'Tương tự với {source_title}',
+            }
+            current = results_by_id.get(movie_id)
+            if current is None or item['score'] > current['score']:
+                results_by_id[movie_id] = item
+
+    recommendations = sorted(
+        results_by_id.values(),
+        key=lambda item: (-item['score'], item['movie']['id']),
+    )[:limit]
+    if not recommendations:
+        raise tmdb.TMDBError(
+            'Không tìm thấy phim tương tự trong model offline. '
+            'Cấu hình TMDB_ACCESS_TOKEN hoặc dùng model có chứa các phim yêu thích.'
+        )
+    return {
+        'movies': recommendations,
+        'cold_start': False,
+        'hybrid': False,
+    }
+
+
+def recommend_for_favorites(user, limit=6):
+    favorite_rows = list(
+        FavoriteMovie.objects.filter(user=user).values_list('tmdb_id', 'movie_title')
+    )
+    if not favorite_rows:
+        return []
+
+    offline_model = None
+    offline_model_checked = False
+
+    def get_offline_model():
+        nonlocal offline_model, offline_model_checked
+        if not offline_model_checked:
+            from .views import _get_recommender
+
+            offline_model = _get_recommender()
+            offline_model_checked = True
+        return offline_model
+
+    uses_tmdb = bool(tmdb.settings.TMDB_ACCESS_TOKEN)
+    has_legacy_favorites = any(
+        tmdb_id is None for tmdb_id, _ in favorite_rows
+    )
+    title_indices = {}
+    if not uses_tmdb or has_legacy_favorites:
+        offline_model = get_offline_model()
+        if has_legacy_favorites and offline_model is not None:
+            title_indices = {
+                title.casefold(): index
+                for title, index in offline_model.title_to_idx.items()
+            }
+
+    favorites = []
+    for tmdb_id, title in favorite_rows:
+        model_title = None
+        if tmdb_id is None and offline_model is not None:
+            index = title_indices.get(title.strip().casefold())
+            if index is not None:
+                row = offline_model.metadata.iloc[int(index)]
+                tmdb_id = int(row['id'])
+                model_title = str(row['title'])
+        favorites.append({
+            'id': tmdb_id,
+            'title': title,
+            'model_title': model_title,
+            'error': None,
+        })
+
+    if uses_tmdb:
+        for favorite in favorites:
+            if favorite['id'] is not None:
+                continue
+            try:
+                matches = tmdb.search_movies(favorite['title'])
+            except tmdb.TMDBError as exc:
+                favorite['error'] = str(exc)
+                continue
+            exact_match = next(
+                (
+                    movie for movie in matches
+                    if str(movie.get('title') or '').casefold()
+                    == favorite['title'].strip().casefold()
+                ),
+                None,
+            )
+            if exact_match and exact_match.get('id') is not None:
+                favorite['id'] = int(exact_match['id'])
+
+    favorite_ids = {
+        favorite['id'] for favorite in favorites
+        if favorite['id'] is not None
+    }
+    groups = []
+    for favorite in favorites:
+        candidates = []
+        api_error = favorite['error']
+        if uses_tmdb and favorite['id'] is not None:
+            try:
+                candidates = tmdb.similar_movies(favorite['id'])
+            except tmdb.TMDBError as exc:
+                api_error = str(exc)
+
+        recommendations = []
+        seen_ids = set(favorite_ids)
+        if favorite['id'] is not None:
+            seen_ids.add(favorite['id'])
+        for movie in candidates:
+            movie_id = movie.get('id')
+            if movie_id is None:
+                continue
+            try:
+                movie_id = int(movie_id)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if movie_id in seen_ids or movie.get('adult') is True:
+                continue
+            if not movie.get('title'):
+                continue
+            seen_ids.add(movie_id)
+            recommendations.append({**movie, 'id': movie_id})
+            if len(recommendations) == limit:
+                break
+
+        if not recommendations:
+            offline_model = get_offline_model()
+            if offline_model is not None:
+                model_title = favorite['model_title']
+                if model_title is None and favorite['id'] is not None:
+                    source_rows = offline_model.metadata[
+                        offline_model.metadata['id'] == favorite['id']
+                    ]
+                    if not source_rows.empty:
+                        model_title = str(source_rows.iloc[0]['title'])
+                if model_title:
+                    offline_result = offline_model.get_recommendations(
+                        model_title, n=limit * 2
+                    )
+                    for movie in offline_result.get('recommendations', []):
+                        movie_id = movie.get('id')
+                        if movie_id is None:
+                            continue
+                        try:
+                            movie_id = int(movie_id)
+                        except (TypeError, ValueError, OverflowError):
+                            continue
+                        if movie_id in seen_ids:
+                            continue
+                        seen_ids.add(movie_id)
+                        recommendations.append({
+                            'id': movie_id,
+                            'title': movie.get('title') or '',
+                            'poster_url': movie.get('poster_url'),
+                            'vote_average': movie.get('rating_value') or 0,
+                        })
+                        if len(recommendations) == limit:
+                            break
+
+        group = {
+            'favorite_id': favorite['id'],
+            'favorite_title': favorite['title'],
+            'recommendations': recommendations,
+            'error': None,
+        }
+        if not recommendations:
+            if api_error:
+                group['error'] = api_error
+            elif offline_model is None:
+                group['error'] = (
+                    'Model offline đang tải hoặc chưa sẵn sàng. Vui lòng thử lại sau.'
+                )
+            else:
+                group['error'] = 'Chưa tìm thấy phim tương tự cho phim yêu thích này.'
+        groups.append(group)
+
+    return groups
+
+
 def recommend(user, limit=12):
-    favorites = list(FavoriteMovie.objects.filter(user=user, tmdb_id__isnull=False).values_list('tmdb_id', flat=True)[:60])
+    favorites = _favorite_movie_ids(user)
     ratings = dict(MovieRating.objects.filter(user=user).values_list('tmdb_id', 'rating')[:100])
     recent = list(MovieInteraction.objects.filter(user=user, action='detail').values_list('tmdb_id', flat=True)[:80])
     positive = defaultdict(float)
@@ -55,12 +308,15 @@ def recommend(user, limit=12):
     if not seeds:
         movies = tmdb.popular_movies()[:limit]
         return {'movies': [{'movie': m, 'score': None, 'reason': 'Phim phổ biến trên TMDB'} for m in movies], 'cold_start': True, 'hybrid': False}
+    if not tmdb.settings.TMDB_ACCESS_TOKEN:
+        return _offline_recommendations(seeds, excluded, limit)
+
     details = []
     for mid in seeds:
         try: details.append((tmdb.get_movie_details(mid), positive[mid]))
         except tmdb.TMDBError: continue
     if not details:
-        raise tmdb.TMDBError('Không thể tải thông tin các phim bạn đã tương tác.')
+        return _offline_recommendations(seeds, excluded, limit)
     profile = Counter()
     genres = defaultdict(float)
     for movie, weight in details:
@@ -90,7 +346,8 @@ def recommend(user, limit=12):
     except tmdb.TMDBError:
         if not pool: raise
     candidates = list(pool.values())[:180]
-    if not candidates: return {'movies': [], 'cold_start': False, 'hybrid': False}
+    if not candidates:
+        return _offline_recommendations(seeds, excluded, limit)
     content = cosine_scores(profile, candidates)
     maximum = max(genres.values(), default=1) or 1
     result = []

@@ -320,6 +320,7 @@ class MovieRecommender:
         genres = [_genre_label(g) for g in _as_list(movie.get('genres'))[:3]]
 
         return {
+            'id': int(movie['id']),
             'title': title,
             'release_date': _clean(movie.get('release_date')),
             'year': _year(movie.get('release_date')),

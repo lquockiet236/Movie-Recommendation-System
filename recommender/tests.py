@@ -607,22 +607,22 @@ class NavigationTests(TestCase):
         self.assertContains(response, 'Yêu thích')
 
     @patch(
-        'recommender.recommendation_views.recommend',
+        'recommender.recommendation_views.recommend_for_favorites',
         side_effect=tmdb_views.tmdb.TMDBError(
             'Không thể tải thông tin các phim bạn đã tương tác.'
         ),
     )
-    def test_unavailable_seed_movie_notice_is_hidden(self, recommend):
+    def test_unavailable_seed_movie_error_remains_visible(self, recommend):
         response = self.client.get('/for-you/')
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Gợi ý dành cho bạn')
-        self.assertNotContains(response, 'Không thể tải thông tin các phim bạn đã tương tác.')
-        self.assertNotContains(response, 'Chưa có phim gợi ý.')
-        self.assertNotContains(response, 'Điểm phù hợp là điểm xếp hạng nội bộ')
+        self.assertContains(
+            response, 'Không thể tải thông tin các phim bạn đã tương tác.'
+        )
 
     @patch(
-        'recommender.recommendation_views.recommend',
+        'recommender.recommendation_views.recommend_for_favorites',
         side_effect=tmdb_views.tmdb.TMDBError('Lỗi TMDB khác.'),
     )
     def test_other_recommendation_errors_remain_visible(self, recommend):

@@ -4,13 +4,43 @@
 <header class="hero">
 <h1>Gợi ý dành cho bạn</h1>
 </header>
-{% if error %}<p class="error">{{ error }}</p>{% elif not suppress_recommendations %}
-{% if cold_start %}<p>Bạn chưa có đủ dữ liệu sở thích. Đây là các phim phổ biến để khám phá. Hãy yêu thích hoặc đánh giá phim để nhận gợi ý riêng.</p>{% endif %}
-<div class="grid">
-{% for item in recommendations %}
-<a class="movie" href="{% url 'recommender:tmdb_detail' item.movie.id %}">
-{% if item.movie.poster_path %}<img loading="lazy" src="https://image.tmdb.org/t/p/w342{{ item.movie.poster_path }}" alt="Poster {{ item.movie.title }}">{% endif %}
-<div class="info"><strong>{{ item.movie.title }}</strong><span class="muted">★ {{ item.movie.vote_average|floatformat:1 }}</span><p class="muted">{{ item.reason }}</p>{% if item.score != None %}<span class="muted">Điểm phù hợp: {{ item.score }}/100</span>{% endif %}</div></a>
-{% empty %}<p>Chưa có phim gợi ý. Hãy khám phá và đánh giá thêm phim.</p>{% endfor %}
-</div>{% endif %}
+{% if error %}
+<p class="error">{{ error }}</p>
+{% elif favorite_groups %}
+    {% for group in favorite_groups %}
+    <section class="section">
+        <h2>Phim tương tự với {{ group.favorite_title }}</h2>
+        {% if group.error %}
+        <p class="error">{{ group.error }}</p>
+        {% elif group.recommendations %}
+        <div class="grid">
+            {% for item in group.recommendations %}
+            <article class="movie">
+                <a class="movie-primary" href="{% url 'recommender:tmdb_detail' item.id %}">
+                    {% if item.poster_url %}
+                    <img loading="lazy" src="{{ item.poster_url }}" alt="Poster {{ item.title }}">
+                    {% elif item.poster_path %}
+                    <img loading="lazy" src="https://image.tmdb.org/t/p/w342{{ item.poster_path }}" alt="Poster {{ item.title }}">
+                    {% else %}
+                    <div class="movie-poster-fallback">Chưa có poster</div>
+                    {% endif %}
+                    <div class="info">
+                        <strong>{{ item.title }}</strong>
+                        <span class="muted">★ {{ item.vote_average|floatformat:1 }}</span>
+                    </div>
+                </a>
+                <div class="movie-actions">
+                    {% include 'recommender/tmdb_external_links.html' with movie=item %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>Chưa tìm thấy phim tương tự cho phim yêu thích này.</p>
+        {% endif %}
+    </section>
+    {% endfor %}
+{% else %}
+<p>Bạn chưa có phim yêu thích. Hãy thêm phim yêu thích để nhận gợi ý tương tự.</p>
+{% endif %}
 {% endblock %}
