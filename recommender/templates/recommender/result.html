@@ -469,7 +469,7 @@
             {% endif %}
             <div class="source-text">
                 <h1 class="results-title">
-                    Movies like <span class="searched-movie">{{ input_movie_name }}</span>{% if source_movie.year %} <span class="results-subtitle">({{ source_movie.year }})</span>{% endif %}
+                Phim phù hợp với mô tả: <span class="searched-movie">{{ input_movie_name|truncatechars:180 }}</span>
                 </h1>
                 {% if source_movie %}
                 <p class="results-subtitle">
@@ -482,7 +482,7 @@
 
     <main class="container">
         {% if recommended_movies %}
-        <p class="results-count">Showing {{ total_recommendations }} similar {{ total_recommendations|pluralize:"film,films" }}</p>
+        <p class="results-count">Tìm thấy {{ total_recommendations }} phim phù hợp với nội dung mô tả</p>
         <div class="movies-grid">
             {% for movie in recommended_movies %}
             <article class="movie-card reveal">

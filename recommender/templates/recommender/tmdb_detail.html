@@ -21,7 +21,7 @@
     <p class="muted"><strong>Thời lượng:</strong> {{ movie.runtime|default:'Chưa rõ' }} phút</p>
     <p class="overview">{{ movie.overview|default:'Chưa có mô tả tiếng Việt.' }}</p>
     <div class="action-toolbar{% if not user.is_authenticated %} action-toolbar-guest{% endif %}" aria-label="Thao tác phim">
-      <a class="toolbar-button toolbar-recommend" href="{% url 'recommender:recommend' %}?movie={{ movie.title|urlencode }}">
+      <a class="toolbar-button toolbar-recommend" href="{% url 'recommender:recommend' %}?description={{ movie.overview|truncatechars:500|urlencode }}">
         <span aria-hidden="true">✦</span>Tìm phim tương tự
       </a>
       {% if user.is_authenticated %}

@@ -8,6 +8,7 @@ progress. Everything in this module is read-only once the model is loaded.
 """
 import json
 import logging
+import pickle
 import threading
 import time
 from datetime import date
@@ -26,6 +27,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
+from . import tmdb_service as tmdb
 from .models import Movie
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,107 @@ def _as_list(value) -> list:
 # and that same column is saved for display. These two are the only TMDB genres
 # that need more than title-casing to read properly.
 _GENRE_LABELS = {'sciencefiction': 'Science Fiction', 'tvmovie': 'TV Movie'}
+
+
+VIETNAMESE_GENRES = {
+    'action': ('Hành động', ('hanh dong', 'hành động')),
+    'adventure': ('Phiêu lưu', ('phieu luu', 'phiêu lưu')),
+    'animation': ('Hoạt hình', ('hoat hinh', 'hoạt hình')),
+    'comedy': ('Hài', ('hai', 'hài')),
+    'crime': ('Hình sự', ('hinh su', 'hình sự')),
+    'documentary': ('Tài liệu', ('tai lieu', 'tài liệu')),
+    'drama': ('Chính kịch', ('chinh kich', 'chính kịch')),
+    'family': ('Gia đình', ('gia dinh', 'gia đình')),
+    'fantasy': ('Giả tưởng', ('gia tuong', 'giả tưởng')),
+    'history': ('Lịch sử', ('lich su', 'lịch sử')),
+    'horror': ('Kinh dị', ('kinh di', 'kinh dị')),
+    'music': ('Nhạc', ('nhac', 'nhạc')),
+    'mystery': ('Bí ẩn', ('bi an', 'bí ẩn')),
+    'romance': ('Lãng mạn', ('lang man', 'lãng mạn')),
+    'sciencefiction': ('Khoa học viễn tưởng', ('khoa hoc vien tuong', 'khoa học viễn tưởng')),
+    'tvmovie': ('Phim truyền hình', ('phim truyen hinh', 'phim truyền hình')),
+    'thriller': ('Gây cấn', ('gay can', 'gây cấn')),
+    'war': ('Chiến tranh', ('chien tranh', 'chiến tranh')),
+    'western': ('Miền Tây', ('mien tay', 'miền tây')),
+}
+
+
+def _genre_key(value):
+    text = str(value or '').strip().casefold()
+    return ''.join(ch for ch in text if ch.isalnum())
+
+
+def _normalize_vietnamese_genre(value):
+    """Map an English or Vietnamese genre name to canonical search and display forms."""
+    key = _genre_key(value)
+    for canonical, (label, aliases) in VIETNAMESE_GENRES.items():
+        if key in {_genre_key(canonical), _genre_key(label), *(_genre_key(alias) for alias in aliases)}:
+            return canonical, label
+    return None, str(value or '').strip()
+
+
+def _expand_vietnamese_description(description):
+    """Expand Vietnamese genre and plot concepts for the English-trained TF-IDF vectorizer."""
+    cleaned = ' '.join(str(description or '').split())
+    expanded = cleaned.casefold()
+
+    for canonical, (label, aliases) in VIETNAMESE_GENRES.items():
+        genre_terms = {label.casefold(), canonical, canonical.replace('sciencefiction', 'science fiction')}
+        genre_terms.update(alias.casefold() for alias in aliases)
+        if any(term in expanded for term in genre_terms if term):
+            expanded += f' {canonical.replace("sciencefiction", "science fiction")}'
+            if canonical == 'sciencefiction':
+                expanded += ' science fiction sci-fi futuristic space alien'
+            elif canonical == 'horror':
+                expanded += ' horror ghost supernatural monster scary'
+            elif canonical == 'romance':
+                expanded += ' romance love relationship'
+            elif canonical == 'comedy':
+                expanded += ' comedy funny humor'
+            elif canonical == 'animation':
+                expanded += ' animation animated cartoon'
+            elif canonical == 'documentary':
+                expanded += ' documentary real life biography'
+            elif canonical == 'family':
+                expanded += ' family children child parents'
+            elif canonical == 'action':
+                expanded += ' action fight battle superhero'
+            elif canonical == 'adventure':
+                expanded += ' adventure journey expedition'
+            elif canonical == 'thriller':
+                expanded += ' thriller suspense tension crime'
+
+    concept_map = {
+        'không gian': 'space',
+        'phi hành': 'astronaut spacecraft space',
+        'du hành': 'travel journey',
+        'thời gian': 'time travel',
+        'hố sâu': 'wormhole black hole',
+        'trái đất': 'earth planet',
+        'ngoài hành tinh': 'alien extraterrestrial planet',
+        'người ngoài hành tinh': 'alien extraterrestrial',
+        'robot': 'robot artificial intelligence',
+        'trí tuệ nhân tạo': 'artificial intelligence machine',
+        'ma': 'ghost paranormal supernatural',
+        'linh hồn': 'ghost spirit supernatural',
+        'zombie': 'zombie undead',
+        'ma cà rồng': 'vampire',
+        'gia đình': 'family father mother child',
+        'tình yêu': 'romance love',
+        'chiến tranh': 'war soldier army',
+        'cướp': 'thief robbery',
+        'tội phạm': 'crime criminal',
+        'cứu nhân loại': 'save world humanity',
+        'thảm họa': 'disaster apocalypse',
+        'khủng long': 'dinosaur',
+        'phép thuật': 'magic fantasy',
+        'huyền bí': 'magic supernatural fantasy',
+    }
+    for vietnamese, english in concept_map.items():
+        if vietnamese in expanded:
+            expanded += ' ' + english
+
+    return expanded
 
 
 def _genre_label(genre) -> str:
@@ -119,6 +222,8 @@ class MovieRecommender:
         self._neighbor_scores = None   # (n, k) float array of matching scores
         self._similarity_sparse = None  # scipy sparse matrix, never densified
         self._similarity_dense = None   # memory-mapped (n, n) array
+        self._tfidf_vectorizer = None
+        self._svd_model = None
         self._load(progress_callback)
 
     # ------------------------------------------------------------------ load
@@ -145,6 +250,16 @@ class MovieRecommender:
 
         with open(self.model_dir / 'config.json', encoding='utf-8') as handle:
             self.config = json.load(handle)
+
+        vectorizer_path = self.model_dir / 'tfidf_vectorizer.pkl'
+        if vectorizer_path.exists():
+            with open(vectorizer_path, 'rb') as handle:
+                self._tfidf_vectorizer = pickle.load(handle)
+
+        svd_path = self.model_dir / 'svd_model.pkl'
+        if svd_path.exists():
+            with open(svd_path, 'rb') as handle:
+                self._svd_model = pickle.load(handle)
         report(100)
 
         logger.info("Loaded %s movies successfully", f"{self.movie_count:,}")
@@ -348,6 +463,81 @@ class MovieRecommender:
             return 0.0
         age = max(0, current_year - int(year))
         return RECENCY_BONUS * max(0.0, 1.0 - age / RECENCY_WINDOW_YEARS)
+
+    def recommend_by_description(self, description: str, n: int = 15) -> dict:
+        """Rank movies by semantic text similarity to a free-form plot description."""
+        cleaned = ' '.join(str(description or '').split())
+        if len(cleaned) < 10:
+            return {'error': 'Vui lòng nhập mô tả phim dài hơn 10 ký tự.'}
+
+        if self._tfidf_vectorizer is None:
+            return {'error': 'Model hiện tại chưa hỗ trợ tìm kiếm theo mô tả.'}
+
+        expanded_query = _expand_vietnamese_description(cleaned)
+
+        documents = []
+        for _, movie in self.metadata.iterrows():
+            genres = ' '.join(
+                str(genre).replace('sciencefiction', 'science fiction')
+                for genre in _as_list(movie.get('genres'))
+            )
+            overview = str(_clean(movie.get('overview'), ''))
+            documents.append(f'{genres} {overview}')
+
+        movie_vectors = self._tfidf_vectorizer.transform(documents)
+        query_vector = self._tfidf_vectorizer.transform([expanded_query])
+
+        if self._svd_model is not None:
+            movie_vectors = self._svd_model.transform(movie_vectors)
+            query_vector = self._svd_model.transform(query_vector)
+
+        movie_arrays = (
+            movie_vectors.toarray()
+            if hasattr(movie_vectors, 'toarray')
+            else np.asarray(movie_vectors)
+        )
+        query_arrays = (
+            query_vector.toarray()
+            if hasattr(query_vector, 'toarray')
+            else np.asarray(query_vector)
+        )
+        movie_norms = np.linalg.norm(movie_arrays, axis=1)
+        query_norm = float(np.linalg.norm(query_arrays[0]))
+
+        if query_norm == 0:
+            return {'error': 'Mô tả này chưa đủ từ khóa để phân tích.'}
+
+        dot_products = np.asarray(movie_arrays @ query_arrays[0]).ravel()
+        scores = np.divide(
+            dot_products,
+            movie_norms * float(query_norm),
+            out=np.zeros_like(dot_products, dtype=np.float64),
+            where=(movie_norms * float(query_norm)) != 0,
+        )
+
+        take = min(max(int(n), 1), len(scores))
+        candidate_indices = np.argpartition(-scores, take - 1)[:take]
+        candidate_indices = candidate_indices[
+            np.argsort(-scores[candidate_indices], kind='stable')
+        ]
+
+        recommendations = []
+        for idx in candidate_indices:
+            payload = self._movie_payload(int(idx), float(scores[int(idx)]))
+            recommendations.append(payload)
+
+        return {
+            'query_movie': cleaned,
+            'source_movie': {
+                'title': 'Mô tả phim của bạn',
+                'year': '',
+                'production': 'Phân tích nội dung',
+                'rating': '',
+                'genres': 'TF-IDF · cosine similarity',
+                'poster_url': None,
+            },
+            'recommendations': recommendations,
+        }
 
     def get_recommendations(self, movie_title: str, n: int = 15,
                             min_rating: float | None = None) -> dict:
@@ -588,13 +778,124 @@ def recommend_page(request):
     """Render the on-demand recommendation form and handle its submissions."""
     if request.method == 'GET':
         return render(request, 'recommender/recommend.html', {
-            'movie_query': request.GET.get('movie', '').strip()[:MAX_QUERY_LENGTH],
+            'movie_description': request.GET.get('description', '').strip()[:MAX_QUERY_LENGTH],
         })
     return _recommend_movies(request)
 
 
+def _tmdb_movie_payload(movie):
+    poster_path = str(movie.get('poster_path') or '')
+    rating = _number(movie.get('vote_average'))
+    votes = _number(movie.get('vote_count'))
+    release_date = str(movie.get('release_date') or '')
+    genres = [
+        genre.get('name') or ''
+        for genre in movie.get('genres', [])
+        if genre.get('name')
+    ]
+    if not genres:
+        genre_names = {
+            28: 'Hành động', 12: 'Phiêu lưu', 16: 'Hoạt hình', 35: 'Hài',
+            80: 'Hình sự', 99: 'Tài liệu', 18: 'Chính kịch', 10751: 'Gia đình',
+            14: 'Giả tưởng', 36: 'Lịch sử', 27: 'Kinh dị', 10402: 'Nhạc',
+            9648: 'Bí ẩn', 10749: 'Lãng mạn', 878: 'Khoa học viễn tưởng',
+            10770: 'Phim truyền hình', 53: 'Gây cấn', 10752: 'Chiến tranh',
+            37: 'Miền Tây',
+        }
+        genres = [
+            genre_names[genre_id]
+            for genre_id in movie.get('genre_ids', [])
+            if genre_id in genre_names
+        ]
+
+    return {
+        'id': int(movie['id']),
+        'title': str(movie.get('title') or ''),
+        'release_date': release_date,
+        'year': release_date[:4] if len(release_date) >= 4 else '',
+        'genre_list': genres[:3],
+        'genres': ', '.join(genres[:3]) or 'N/A',
+        'rating': f'{rating:.1f}/10' if rating is not None else 'N/A',
+        'rating_value': round(rating, 1) if rating is not None else None,
+        'votes': f'{int(votes):,} votes' if votes is not None else 'N/A',
+        'poster_url': f'https://image.tmdb.org/t/p/w342{poster_path}' if poster_path else None,
+        'similarity_percent': None,
+    }
+
+
+def _tmdb_recommendations(movie_name, limit):
+    if not tmdb.settings.TMDB_ACCESS_TOKEN:
+        return None
+
+    matches = tmdb.search_movies(movie_name)
+    if not matches:
+        return None
+
+    wanted = movie_name.strip().casefold()
+    source = next(
+        (
+            movie for movie in matches
+            if str(movie.get('title') or '').casefold() == wanted
+            or str(movie.get('original_title') or '').casefold() == wanted
+        ),
+        matches[0],
+    )
+    tmdb_id = source.get('id')
+    if tmdb_id is None:
+        return None
+
+    tmdb_id = int(tmdb_id)
+    source_details = tmdb.get_movie_details(tmdb_id)
+    similar = tmdb.similar_movies(tmdb_id)
+    recommendations = []
+    for movie in similar:
+        if movie.get('adult') is True or not movie.get('title'):
+            continue
+        payload = _tmdb_movie_payload(movie)
+        recommendations.append(payload)
+        if len(recommendations) >= limit:
+            break
+
+    if not recommendations:
+        return None
+
+    source_payload = _tmdb_movie_payload(source_details)
+    source_payload.update({
+        'title': str(source_details.get('title') or source.get('title') or movie_name),
+        'year': str(source_details.get('release_date') or '')[:4],
+        'production': ', '.join(
+            company.get('name', '')
+            for company in source_details.get('production_companies', [])[:2]
+            if company.get('name')
+        ) or 'N/A',
+    })
+    return {
+        'query_movie': source_payload['title'],
+        'source_movie': source_payload,
+        'recommendations': recommendations,
+    }
+
+
+def _can_use_tmdb_for_request(request):
+    """API recommendations are reserved for authenticated accounts."""
+    return (
+        request.user.is_authenticated
+        and bool(tmdb.settings.TMDB_ACCESS_TOKEN)
+    )
+
+
 def _recommend_movies(request):
     """Generate recommendations only in response to an explicit form submission."""
+    description = (
+        request.POST.get('movie_description')
+        or request.POST.get('movie_name')
+        or ''
+    ).strip()[:MAX_QUERY_LENGTH]
+    if not description:
+        return render(request, 'recommender/recommend.html', {
+            'error_message': 'Vui lòng mô tả ngắn gọn nội dung phim.',
+        })
+
     recommender = _get_recommender()
 
     if recommender is None:
@@ -606,31 +907,24 @@ def _recommend_movies(request):
             )
         return render(request, 'recommender/recommend.html', {
             'error_message': error,
-            'movie_query': request.POST.get('movie_name', '').strip()[:MAX_QUERY_LENGTH],
-        })
-
-    movie_name = request.POST.get('movie_name', '').strip()[:MAX_QUERY_LENGTH]
-    if not movie_name:
-        return render(request, 'recommender/recommend.html', {
-            'error_message': 'Vui lòng nhập tên phim.',
+            'movie_description': description,
         })
 
     try:
-        result = recommender.get_recommendations(
-            movie_name, n=getattr(settings, 'RECOMMENDATION_COUNT', 15)
+        result = recommender.recommend_by_description(
+            description, n=getattr(settings, 'RECOMMENDATION_COUNT', 15)
         )
     except Exception:
-        logger.exception("Recommendation failed for %r", movie_name)
+        logger.exception("Description recommendation failed")
         return render(request, 'recommender/recommend.html', {
-            'movie_query': movie_name,
+            'movie_description': description,
             'error_message': 'Đã xảy ra lỗi khi tạo gợi ý. Vui lòng thử lại.',
         }, status=500)
 
     if 'error' in result:
         return render(request, 'recommender/recommend.html', {
-            'movie_query': movie_name,
+            'movie_description': description,
             'error_message': result['error'],
-            'suggestions': result.get('suggestions', []),
         })
 
     return render(request, 'recommender/result.html', {

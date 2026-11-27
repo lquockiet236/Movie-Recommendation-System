@@ -4,165 +4,18 @@
 <section class="recommend-hero">
   <div class="recommend-copy">
     <span class="eyebrow">CINEREC · DÀNH RIÊNG CHO BẠN</span>
-    <h1>Tìm bộ phim tiếp theo bạn sẽ yêu thích</h1>
+    <h1>Tìm phim theo nội dung mô tả</h1>
     <a class="back-link" href="{% url 'recommender:tmdb_browse' %}">← Trở về danh sách phim</a>
   </div>
   <form method="post" class="recommend-card" action="{% url 'recommender:recommend' %}">
     {% csrf_token %}
-    <label for="movie_name">Bạn thích bộ phim nào?</label>
-    <div class="recommend-input-wrap">
-      <input id="movie_name" name="movie_name" value="{{ movie_query|default:'' }}" maxlength="200"
-             placeholder="Ví dụ: Inception, The Matrix..." autocomplete="off" required
-             role="combobox" aria-autocomplete="list" aria-expanded="false"
-             aria-controls="movieSuggestionsList">
-      <ul class="movie-suggestions-list" id="movieSuggestionsList" role="listbox"
-          aria-label="Gợi ý tên phim"></ul>
-    </div>
-    <button type="submit">✨ Tìm phim tương tự</button>
-    <p class="search-status muted" id="searchStatus" aria-live="polite"></p>
+    <label for="movie_description">Mô tả ngắn gọn về bộ phim bạn muốn</label>
+    <textarea id="movie_description" name="movie_description" rows="5" maxlength="500"
+      placeholder="Ví dụ: Một phi hành đoàn du hành qua hố sâu không gian để tìm hành tinh mới, trong đó thời gian trôi chậm và nhân vật phải cân bằng nhiệm vụ với gia đình..."
+      style="width:100%;resize:vertical;padding:12px;border:1px solid #475569;border-radius:10px;background:rgba(15,23,42,.72);color:#f1f5f9;font:inherit"
+      required>{{ movie_description|default:'' }}</textarea>
+    <button type="submit">✨ Tìm phim theo mô tả</button>
     {% if error_message %}<p class="error" role="alert">{{ error_message }}</p>{% endif %}
-    {% if suggestions %}
-    <p class="muted">Có phải bạn đang tìm một trong những phim này?</p>
-    <div class="suggestion-list" aria-label="Phim có thể bạn muốn tìm">
-      {% for suggestion in suggestions %}
-      <button class="suggestion-chip" type="button" data-title="{{ suggestion }}">{{ suggestion }}</button>
-      {% endfor %}
-    </div>
-    {% endif %}
   </form>
 </section>
-<script>
-  (function () {
-    var input = document.getElementById('movie_name');
-    var list = document.getElementById('movieSuggestionsList');
-    var status = document.getElementById('searchStatus');
-    var inputWrap = document.querySelector('.recommend-input-wrap');
-    var timer;
-    var controller;
-    var titles = [];
-    var activeIndex = -1;
-
-    function closeList() {
-      list.replaceChildren();
-      list.classList.remove('is-open');
-      input.setAttribute('aria-expanded', 'false');
-      input.removeAttribute('aria-activedescendant');
-      titles = [];
-      activeIndex = -1;
-    }
-
-    function renderList(matches) {
-      list.replaceChildren();
-      titles = matches;
-      activeIndex = -1;
-
-      if (!matches.length) {
-        var empty = document.createElement('li');
-        empty.className = 'movie-suggestion-empty';
-        empty.textContent = 'Không tìm thấy phim.';
-        list.appendChild(empty);
-      } else {
-        matches.forEach(function (title, index) {
-          var option = document.createElement('li');
-          option.className = 'movie-suggestion-option';
-          option.id = 'movie-suggestion-' + index;
-          option.setAttribute('role', 'option');
-          option.setAttribute('aria-selected', 'false');
-          option.textContent = title;
-          option.addEventListener('pointerdown', function (event) {
-            event.preventDefault();
-            selectTitle(index);
-          });
-          list.appendChild(option);
-        });
-      }
-
-      list.classList.add('is-open');
-      input.setAttribute('aria-expanded', 'true');
-    }
-
-    function selectTitle(index) {
-      if (titles[index] === undefined) { return; }
-      input.value = titles[index];
-      closeList();
-      input.focus();
-    }
-
-    function setActiveIndex(index) {
-      var options = list.querySelectorAll('.movie-suggestion-option');
-      if (!options.length) { return; }
-      activeIndex = (index % options.length + options.length) % options.length;
-      options.forEach(function (option, optionIndex) {
-        var isActive = optionIndex === activeIndex;
-        option.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        if (isActive) {
-          input.setAttribute('aria-activedescendant', option.id);
-          option.scrollIntoView({ block: 'nearest' });
-        }
-      });
-    }
-
-    input.addEventListener('input', function () {
-      window.clearTimeout(timer);
-      if (controller) { controller.abort(); }
-      var query = input.value.trim();
-      closeList();
-      status.textContent = '';
-      if (query.length < 2) { return; }
-
-      timer = window.setTimeout(function () {
-        controller = new AbortController();
-        fetch('{% url "recommender:search_movies" %}?q=' + encodeURIComponent(query), {
-          signal: controller.signal,
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        }).then(function (response) {
-          if (!response.ok) { throw new Error('Search request failed'); }
-          return response.json();
-        }).then(function (data) {
-          if (query !== input.value.trim()) { return; }
-          if (data.loading) {
-            status.textContent = 'Đang tải danh mục phim, vui lòng thử lại sau giây lát.';
-            closeList();
-            return;
-          }
-          renderList(data.movies || []);
-        }).catch(function (error) {
-          if (error.name !== 'AbortError') {
-            status.textContent = 'Chưa thể tải gợi ý tên phim. Bạn vẫn có thể nhập tên và tiếp tục.';
-          }
-        });
-      }, 180);
-    });
-
-    input.addEventListener('keydown', function (event) {
-      if (event.key === 'ArrowDown' && list.classList.contains('is-open')) {
-        event.preventDefault();
-        setActiveIndex(activeIndex + 1);
-      } else if (event.key === 'ArrowUp' && list.classList.contains('is-open')) {
-        event.preventDefault();
-        setActiveIndex(activeIndex - 1);
-      } else if (event.key === 'Enter' && activeIndex >= 0) {
-        event.preventDefault();
-        selectTitle(activeIndex);
-      } else if (event.key === 'Escape') {
-        closeList();
-      }
-    });
-
-    input.addEventListener('blur', function () {
-      window.setTimeout(closeList, 120);
-    });
-
-    document.addEventListener('click', function (event) {
-      if (!inputWrap.contains(event.target)) { closeList(); }
-    });
-
-    document.querySelectorAll('.suggestion-chip').forEach(function (button) {
-      button.addEventListener('click', function () {
-        input.value = button.dataset.title;
-        input.form.requestSubmit();
-      });
-    });
-  })();
-</script>
 {% endblock %}

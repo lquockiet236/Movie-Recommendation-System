@@ -1,162 +1,159 @@
-# Contributing
+# Đóng góp cho CineRec
 
-Thanks for considering a contribution. This guide covers getting set up,
-running the checks, and the few things about this project that are not obvious
-from the code.
+Cảm ơn bạn đã muốn đóng góp cho hệ thống gợi ý phim. Hướng dẫn này mô tả cách
+thiết lập môi trường, chạy kiểm tra và các quy tắc riêng của dự án.
 
----
+## 1. Thiết lập môi trường
 
-## Getting set up
+Yêu cầu khuyến nghị: Python 3.12 trên Windows, macOS hoặc Linux.
 
-```bash
-git clone https://github.com/inboxpraveen/Movie-Recommendation-System.git
-cd Movie-Recommendation-System
+### Windows
 
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-
-pip install -r requirements.txt
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
 
-Open <http://localhost:8000>. A 6,248-movie demo model ships in `demo_model/`
-and is picked up automatically, so search works immediately, so you do **not**
-need a dataset or a training run to work on the app.
-
-Python 3.11 or newer is required (numpy 2.3 dropped 3.10).
-
----
-
-## Before you open a pull request
-
-Run these three. CI runs the same ones.
+### Linux/macOS
 
 ```bash
-python manage.py check                 # configuration and startup problems
-python manage.py test                  # the test suite
-ruff check .                           # lint (pip install ruff)
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-`ruff check . --fix` applies the mechanical fixes. Style is configured in
-`pyproject.toml`; there is no separate style guide to read.
+Mở <http://127.0.0.1:8000/>. Project đi kèm mô hình mẫu trong `demo_model/`,
+nên không cần TMDB token hoặc dataset để phát triển luồng offline.
 
-### Why `manage.py check` matters
+Tài khoản, database và `.venv/` là dữ liệu cục bộ. Không commit
+`SECRET_KEY`, TMDB token hoặc `db.sqlite3`.
 
-It catches a whole class of bug the tests cannot: anything that breaks before
-Django finishes loading settings. This project shipped a release where a
-logging handler pointed at a directory that did not exist, and *every*
-`manage.py` command failed, while the test suite could not have caught it,
-because the tests never got to run. Please don't skip it.
+## 2. Kiểm tra trước khi tạo pull request
 
----
-
-## Working on the different pieces
-
-### The web app: `recommender/`
-
-`views.py` holds everything: model loading, matching, and the four endpoints.
-There are no database models; the recommender is read-only once loaded.
-
-The model loads once per process in a background thread, and the UI polls
-`/api/model-status/` for progress. If you touch that machinery, exercise all
-four states (`loading`, `ready`, `missing`, `error`), not just the happy path.
-
-Templates are `recommender/templates/recommender/`. CSS and JS are inline by
-design (no build step). Two rules to keep:
-
-- **Nothing that depends on the catalogue size goes into the page.** Titles are
-  fetched from `/api/search/`. An earlier version inlined every title into
-  every render, which grew the page to megabytes.
-- **Never `innerHTML` with server data.** The autocomplete builds DOM nodes.
-
-### The model pipeline: `training/`
-
-Needs extra dependencies:
-
-```bash
-pip install -r requirements-train.txt
+```powershell
+python manage.py check
+python manage.py migrate --check
+python manage.py test
+python -m pip install ruff
+ruff check .
 ```
 
-`train.py` builds a model from a TMDB-shaped CSV; `infer.py` is a standalone
-inference/CLI example. Run `python training/train.py --help` for the options.
+`python manage.py check` phát hiện lỗi settings, middleware, URL và cấu hình
+static trước khi test suite chạy.
 
-Two things worth knowing:
+Với thay đổi deployment, thêm:
 
-- **Top-K neighbours, not a similarity matrix.** Storing the full N×N matrix
-  costs `n*n*4` bytes, about 10 GB at 50,000 movies. The trainer stores the
-  50 nearest neighbours per movie instead (~20 MB) and computes them in
-  bounded-memory chunks. `--legacy-matrix` still writes the old format, and
-  inference reads either.
-- **Parquet list columns load as numpy arrays, not lists.** `isinstance(x, list)`
-  on a genres cell is always `False` and silently drops every genre. Use the
-  `as_list()` / `_as_list()` helpers.
-
-### Model files
-
-Model artifacts are not source. `models/` and `*.pkl` are git-ignored; the
-committed `demo_model/` is deliberately not. If you change the model format,
-update the loader in `views.py`, `training/infer.py`, and the artifact list in
-`demo_model/README.md` together.
-
----
-
-## Tests
-
-```bash
-python manage.py test                          # everything
-python manage.py test recommender              # the web app
-python manage.py test training                 # trainer and inference helpers
+```powershell
+python manage.py check --deploy
+python manage.py collectstatic --noinput
 ```
 
-The suite builds a small synthetic model in a temp directory, so it is fast and
-needs no dataset. The training tests skip automatically when scikit-learn and
-nltk are not installed.
+Chỉ chạy `check --deploy` với `DEBUG=False` và `SECRET_KEY` hợp lệ.
 
-Please add a test with a bug fix. The ones worth copying as examples are the
-regression tests for bugs that were invisible until real data arrived: genres
-being dropped by an `isinstance` check, and poster artwork rendering underneath
-its own placeholder.
+## 3. Cấu trúc code
 
----
+- `movie_recommendation/`: settings, URL gốc, ASGI và WSGI.
+- `recommender/`: view, TMDB service, tài khoản, yêu thích, đánh giá và gợi ý.
+- `recommender/templates/recommender/`: template Django.
+- `recommender/tests*.py`: test web, gợi ý và đánh giá.
+- `training/`: huấn luyện và inference độc lập.
+- `demo_model/`: mô hình offline mẫu.
+- `data/`: dữ liệu huấn luyện thu thập được.
+- `models_tmdb_*` và `models/`: thư mục model được tạo ra.
 
-## Troubleshooting
+## 4. Quy tắc khi thay đổi web app
 
-**`ImportError: DLL load failed while importing _moduleTNC`** (or another scipy
-import error) when running the trainer, typically on Windows: a security policy
-is blocking the pip-installed scipy binary. Use conda for the scientific stack:
+- Không đưa toàn bộ danh mục phim vào HTML. Tìm tiêu đề qua `/api/search/`.
+- Giữ đầy đủ các trạng thái model: `loading`, `ready`, `missing` và `error`.
+- `/api/health/` không được lộ exception hoặc đường dẫn máy chủ.
+- Luồng offline phải vẫn chạy khi không có TMDB Access Token.
+- Thêm migration khi thay đổi Django model và chạy migration cục bộ trước khi
+  mở pull request.
+- Không commit TMDB token, Django secret hoặc database thật.
+- Cập nhật template, URL và test khi thay đổi behavior người dùng.
 
-```bash
-conda create -n movierec python=3.12 numpy scipy pandas pyarrow scikit-learn nltk
-conda activate movierec
-pip install -r requirements.txt
+## 5. Quy tắc khi thay đổi mô hình
+
+Cài dependencies huấn luyện:
+
+```powershell
+python -m pip install -r requirements-train.txt
 ```
 
-The web app is unaffected (it imports scipy lazily), so only training breaks.
+Xem tùy chọn:
 
-**`ValueError: Missing staticfiles manifest entry`**: you are running with
-`DEBUG=False` without having run `python manage.py collectstatic`.
+```powershell
+python training/train.py --help
+python manage.py collect_train_tmdb --help
+python manage.py evaluate_recommendations --help
+```
 
-**`/api/health/` returns 503 with `"reason": "missing"`**: no model was found.
-Check that `demo_model/` exists or that `MODEL_DIR` points at a directory
-containing `config.json`, `title_to_idx.json` and `movie_metadata.parquet`.
+Các lưu ý quan trọng:
 
----
+- Mô hình serving không yêu cầu TF-IDF/SVD pickle.
+- Artifact runtime gồm `config.json`, `title_to_idx.json`,
+  `movie_metadata.parquet`, `neighbors_idx.npy` và `neighbors_scores.npy`.
+- Cột danh mục trong DataFrame Parquet có thể trả NumPy array hoặc giá trị thiếu.
+  Viết helper thống nhất thay vì chỉ kiểm tra `isinstance(value, list)`.
+- Đường dẫn tương đối của mô hình được resolve theo thư mục gốc project.
+- Khi đổi format model, cập nhật đồng bộ loader, training/inference và
+  `demo_model/README.md`.
+- Chỉ mở file pickle từ nguồn đáng tin cậy.
 
-## Pull requests
+## 6. Viết test
 
-- Branch from `master`.
-- Keep the change focused; separate refactors from behaviour changes.
-- Update `CHANGELOG.md` under `[Unreleased]`.
-- Say what you tested. If you changed the UI, a screenshot helps.
+Chạy toàn bộ suite:
 
-Bug reports are most useful with the output of `python manage.py check`, your
-Python version, and whether a model is loaded (`curl localhost:8000/api/health/`).
+```powershell
+python manage.py test
+```
 
----
+Chạy theo khu vực:
 
-## Data attribution
+```powershell
+python manage.py test recommender
+python manage.py test recommender.tests_recommendation
+python manage.py test recommender.tests_evaluation
+python manage.py test training
+```
 
-Movie data comes from [TMDB](https://www.themoviedb.org/). This product uses
-data from TMDB but is not endorsed or certified by TMDB. The MIT licence covers
-this project's source code, not the movie data.
+Test bug nên tái hiện trường hợp lỗi cụ thể. Nếu sửa xử lý Parquet, rating,
+favorite constraint, TMDB response hoặc model-loading state thì thêm test trong
+module gần nhất.
+
+Không gọi TMDB thật trong unit test; mock TMDB service hoặc HTTP response.
+
+## 7. Pull request
+
+- Mô tả rõ vấn đề, giải pháp và các file thay đổi.
+- Branch từ nhánh mặc định của repository.
+- Giữ mỗi pull request tập trung vào một thay đổi.
+- Cập nhật `[Unreleased]` trong `CHANGELOG.md` khi có thay đổi observable.
+- Cập nhật README hoặc PROJECT_GUIDE khi thay đổi lệnh, API hoặc cấu hình.
+- Ghi kết quả các lệnh đã chạy trong mô tả pull request.
+- Đính kèm ảnh hoặc GIF ngắn nếu thay đổi giao diện.
+
+## 8. Báo lỗi
+
+Báo lỗi nên kèm:
+
+- Phiên bản Python và hệ điều hành.
+- Output của `python manage.py check`.
+- Bước tái hiện.
+- Log liên quan sau khi đã xóa token hoặc secret.
+- Trạng thái `/api/model-status/` và `/api/health/`.
+
+Vấn đề bảo mật cần báo riêng theo `SECURITY.md`, không mở issue công khai.
+
+## 9. Quyền dữ liệu và TMDB
+
+Project sử dụng dữ liệu và poster TMDB cho mục đích phát triển và giới thiệu.
+MIT license chỉ áp dụng cho mã nguồn của dự án, không cấp quyền phân phối dữ liệu
+hoặc hình ảnh TMDB.

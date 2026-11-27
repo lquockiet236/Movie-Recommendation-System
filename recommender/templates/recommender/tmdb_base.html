@@ -101,7 +101,8 @@
     .pagination{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:32px}.pagination a{padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:9px}
     .recommend-hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:48px;align-items:center;padding:44px;border:1px solid var(--border);border-radius:24px;background:radial-gradient(ellipse at 20% 5%,rgba(99,102,241,.17),transparent 42%),linear-gradient(130deg,rgba(30,41,59,.96),rgba(30,41,59,.68));box-shadow:0 24px 60px rgba(2,6,23,.22)}
     .recommend-copy .eyebrow{display:inline-block;margin-bottom:16px;color:#a5b4fc;font-size:12px;font-weight:700;letter-spacing:.13em}
-    .recommend-copy h1{max-width:600px}
+    .recommend-copy{min-width:0}
+    .recommend-copy h1{max-width:620px;margin-bottom:14px;font-size:clamp(38px,4vw,48px);line-height:1.08;text-wrap:balance;overflow-wrap:normal;word-break:normal}
     .recommend-copy>p{max-width:540px;font-size:16px;line-height:1.75}
     .recommend-card{padding:24px;background:rgba(15,23,42,.72);border:1px solid var(--border);border-radius:18px;box-shadow:0 16px 42px rgba(2,6,23,.22)}
     .recommend-card label{display:block;margin-bottom:10px;font-weight:600}
@@ -122,10 +123,11 @@
     .movie-suggestion-empty{display:flex;align-items:center;gap:10px;margin:4px;padding:12px;border:1px solid rgba(148,163,184,.12);border-radius:9px;background:rgba(148,163,184,.06);color:var(--muted);font-size:13px;line-height:1.5;white-space:nowrap}
     .movie-suggestion-empty::before{content:"";width:8px;height:8px;flex:none;border-radius:50%;background:#818cf8;box-shadow:0 0 0 4px rgba(99,102,241,.14)}
     @media(max-width:960px){.browse-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.browse-filters .browse-search-wrap{grid-column:1/-1}.browse-filters button{width:100%}.clear-filter{width:100%}}
-    @media(max-width:900px){.recommend-hero{grid-template-columns:1fr;gap:28px;padding:32px}}
+    @media(max-width:1100px){.recommend-hero{gap:32px}.recommend-copy h1{font-size:clamp(34px,4.3vw,44px)}}
+    @media(max-width:900px){.recommend-hero{grid-template-columns:1fr;gap:28px;padding:32px}.recommend-copy h1{max-width:none;font-size:clamp(32px,8vw,42px)}}
     @media(max-width:1000px){.action-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.toolbar-login{justify-self:stretch;white-space:normal}.rating-action,.rating-complete{grid-column:1/-1}}
     @media(max-width:760px){.nav-inner{overflow-x:auto}.nav-link{white-space:nowrap}.detail-layout{grid-template-columns:180px minmax(0,1fr);gap:20px}.hero{padding:28px}}
-    @media(max-width:540px){main{padding:24px 14px 48px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.movie .info{padding:11px;min-height:80px}.browse-filters{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px}.browse-filters .browse-search-wrap{grid-column:auto}.browse-filters button,.clear-filter{width:100%}.detail-layout{grid-template-columns:1fr}.poster{width:180px}.action-toolbar{grid-template-columns:1fr;padding:12px}.action-toolbar-guest{width:100%}.toolbar-button{width:100%;white-space:normal}.toolbar-login{grid-column:auto}.rating-action{grid-column:auto;grid-template-columns:1fr auto;grid-template-areas:"label label" "select submit"}.rating-action label{grid-area:label}.rating-action .rating-select-wrap{grid-area:select}.rating-action button[type=submit]{grid-area:submit}.rating-complete{grid-column:auto;width:100%}.recommend-hero{padding:22px 18px}.hero{padding:24px 20px}}
+    @media(max-width:540px){main{padding:24px 14px 48px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.movie .info{padding:11px;min-height:80px}.browse-filters{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px}.browse-filters .browse-search-wrap{grid-column:auto}.browse-filters button,.clear-filter{width:100%}.detail-layout{grid-template-columns:1fr}.poster{width:180px}.action-toolbar{grid-template-columns:1fr;padding:12px}.action-toolbar-guest{width:100%}.toolbar-button{width:100%;white-space:normal}.toolbar-login{grid-column:auto}.rating-action{grid-column:auto;grid-template-columns:1fr auto;grid-template-areas:"label label" "select submit"}.rating-action label{grid-area:label}.rating-action .rating-select-wrap{grid-area:select}.rating-action button[type=submit]{grid-area:submit}.rating-complete{grid-column:auto;width:100%}.recommend-hero{padding:22px 18px}.recommend-copy h1{font-size:clamp(28px,9vw,36px);line-height:1.12;text-wrap:balance}.hero{padding:24px 20px}}
     {% block extra_styles %}{% endblock %}
   </style>
 </head>

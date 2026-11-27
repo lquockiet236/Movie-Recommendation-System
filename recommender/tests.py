@@ -7,6 +7,7 @@ the tests fast and means they exercise the real loading path -- parquet list
 columns included, since those are a common source of subtle breakage.
 """
 import json
+import pickle
 import re
 import shutil
 import tempfile
@@ -16,6 +17,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
 from django.contrib.auth import get_user_model
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 
@@ -78,6 +80,15 @@ def build_model(directory: Path, with_neighbors: bool = False) -> Path:
     with open(directory / 'title_to_idx.json', 'w', encoding='utf-8') as handle:
         json.dump({m[0]: i for i, m in enumerate(MOVIES)}, handle)
 
+    documents = [
+        ' '.join(m[2]) + ' ' + f'Synthetic overview for {m[0]}. ' * 6
+        for m in MOVIES
+    ]
+    vectorizer = TfidfVectorizer(max_features=10000)
+    vectorizer.fit(documents)
+    with open(directory / 'tfidf_vectorizer.pkl', 'wb') as handle:
+        pickle.dump(vectorizer, handle)
+
     with open(directory / 'config.json', 'w', encoding='utf-8') as handle:
         json.dump({'n_movies': n, 'use_svd': False, 'dataset': 'synthetic-test'}, handle)
 
@@ -123,6 +134,42 @@ class ModelBackedTestCase(SimpleTestCase):
 
 
 class RecommenderCoreTests(ModelBackedTestCase):
+    def test_recommends_movies_by_plot_description(self):
+        recommender = views._get_recommender()
+        result = recommender.recommend_by_description(
+            'Synthetic overview for The Matrix with Action',
+            n=3,
+        )
+        self.assertNotIn('error', result)
+        self.assertEqual(len(result['recommendations']), 3)
+        self.assertEqual(result['source_movie']['title'], 'Mô tả phim của bạn')
+        for movie in result['recommendations']:
+            self.assertNotIn('Hành động', movie['genre_list'])
+            self.assertNotIn('Khoa học viễn tưởng', movie['genre_list'])
+
+    def test_recommends_movies_from_vietnamese_plot_description(self):
+        expanded = views._expand_vietnamese_description(
+            'Một phi hành đoàn du hành qua hố sâu không gian để cứu nhân loại'
+        )
+        self.assertIn('space', expanded)
+        self.assertIn('wormhole', expanded)
+
+    def test_vietnamese_genre_names_are_normalized(self):
+        canonical, label = views._normalize_vietnamese_genre('Hành động')
+        self.assertEqual(canonical, 'action')
+        self.assertEqual(label, 'Hành động')
+
+        canonical, label = views._normalize_vietnamese_genre('Science Fiction')
+        self.assertEqual(canonical, 'sciencefiction')
+        self.assertEqual(label, 'Khoa học viễn tưởng')
+
+    def test_vietnamese_genre_description_is_expanded(self):
+        expanded = views._expand_vietnamese_description(
+            'Phim khoa học viễn tưởng về du hành thời gian'
+        )
+        self.assertIn('science fiction', expanded)
+        self.assertIn('time travel', expanded)
+
     def test_model_loads_movie_count(self):
         self.assertEqual(views._get_recommender().movie_count, len(MOVIES))
 
@@ -243,6 +290,15 @@ class NeighborFileTests(ModelBackedTestCase):
 
 
 class ViewTests(ModelBackedTestCase):
+    @override_settings(TMDB_ACCESS_TOKEN='test-token')
+    @patch('recommender.views.tmdb.search_movies')
+    def test_guest_search_does_not_use_tmdb_api(self, search_movies):
+        response = self.client.post('/recommendation', {'movie_name': 'The Matrix'})
+
+        self.assertEqual(response.status_code, 200)
+        search_movies.assert_not_called()
+        self.assertContains(response, 'The Matrix Reloaded')
+
     def test_login_page_uses_signup_account_layout(self):
         response = self.client.get('/accounts/login/')
 
@@ -257,8 +313,8 @@ class ViewTests(ModelBackedTestCase):
     @override_settings(TMDB_ACCESS_TOKEN='')
     def test_browse_filters_render_all_controls_in_the_responsive_form(self):
         response = self.client.get('/movies/')
-
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Muốn tìm phim theo câu chuyện?')
         self.assertContains(response, 'class="browse-filters"')
         self.assertContains(response, '<footer class="site-footer">© ')
         self.assertContains(response, 'name="q"')
@@ -353,10 +409,11 @@ class ViewTests(ModelBackedTestCase):
         response = self.client.get('/recommendation')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'CineRec')
-        self.assertContains(response, 'role="combobox"')
-        self.assertContains(response, 'id="movieSuggestionsList"')
-        self.assertNotContains(response, '<datalist')
-        self.assertNotContains(response, 'Gợi ý chỉ được tạo sau khi bạn nhấn nút')
+        self.assertContains(response, 'name="movie_description"')
+        self.assertContains(response, 'Tìm phim theo nội dung')
+        self.assertNotContains(response, 'id="movieSuggestionsList"')
+        self.assertNotContains(response, 'data-genre=')
+        self.assertContains(response, 'text-wrap:balance')
         get_recommender.assert_not_called()
 
     @override_settings(TMDB_ACCESS_TOKEN='')
@@ -599,6 +656,46 @@ class NavigationTests(TestCase):
         self.client = Client()
         self.client.force_login(self.user)
 
+    @patch('recommender.views.tmdb.similar_movies')
+    @patch('recommender.views.tmdb.get_movie_details')
+    @patch('recommender.views.tmdb.search_movies')
+    def test_logged_in_search_uses_tmdb_similar_api(
+        self, search_movies, get_movie_details, similar_movies
+    ):
+        search_movies.return_value = [{
+            'id': 603,
+            'title': 'The Matrix',
+            'original_title': 'The Matrix',
+            'poster_path': '/matrix.jpg',
+        }]
+        get_movie_details.return_value = {
+            'id': 603,
+            'title': 'The Matrix',
+            'release_date': '1999-03-31',
+            'poster_path': '/matrix.jpg',
+            'vote_average': 8.2,
+            'vote_count': 24000,
+            'genres': [{'id': 28, 'name': 'Hành động'}],
+            'production_companies': [{'name': 'Warner Bros.'}],
+        }
+        similar_movies.return_value = [{
+            'id': 604,
+            'title': 'The Matrix Reloaded',
+            'release_date': '2003-05-15',
+            'poster_path': '/reloaded.jpg',
+            'vote_average': 7.0,
+            'vote_count': 12000,
+            'genre_ids': [28],
+        }]
+
+        response = self.client.post('/recommendation', {'movie_name': 'The Matrix'})
+
+        self.assertEqual(response.status_code, 200)
+        search_movies.assert_called_once_with('The Matrix')
+        similar_movies.assert_called_once_with(603)
+        self.assertContains(response, 'Movies like')
+        self.assertContains(response, 'The Matrix Reloaded')
+
     def test_movies_and_favorites_share_the_same_navigation(self):
         with (
             patch.object(tmdb_views.tmdb, 'movie_genres', return_value=[]),
@@ -793,6 +890,31 @@ class AdminDashboardTests(TestCase):
         self.admin_user = get_user_model().objects.create_superuser(
             username='admin', email='admin@example.com', password='test-password'
         )
+
+    def test_staff_user_is_redirected_from_public_pages_to_admin(self):
+        self.client.force_login(self.admin_user)
+
+        for url in (
+            '/',
+            '/movies/',
+            '/recommendation',
+            '/favorites/',
+            '/evaluation/',
+            '/api/health/',
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(response['Location'], '/admin/')
+
+    def test_staff_login_redirects_to_admin(self):
+        response = self.client.post('/accounts/login/', {
+            'username': 'admin',
+            'password': 'test-password',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/admin/')
 
     def test_dashboard_requires_staff_login(self):
         response = self.client.get('/admin/dashboard/')
